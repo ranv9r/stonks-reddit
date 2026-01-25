@@ -1,16 +1,30 @@
 /**
  * Redis utility functions for Meme Stonks game.
  * Provides typed wrappers around Redis operations.
+ * 
+ * Optimized for scalability:
+ * - Cooldowns use TTL for automatic cleanup
+ * - Efficient hash operations for state storage
+ * - Minimal memory footprint per user
  */
 
 import { redis } from '@devvit/web/server';
-import { REDIS_KEYS } from '../../shared/config';
+import {
+    REDIS_KEYS,
+    DEFAULT_X_VIRT,
+    DEFAULT_Y_VIRT,
+    DEFAULT_BASE_PRICE,
+    USER_SPEND_LIMIT,
+    COOLDOWN_WINDOW_SECONDS,
+} from '../../shared/config';
 import type {
     StonkState,
     UserData,
     Portfolio,
     PriceHistoryEntry,
     GameConfig,
+    SpendLimitResult,
+    AMMState,
 } from '../../shared/types/stonks';
 
 // ============================================
@@ -18,26 +32,34 @@ import type {
 // ============================================
 
 /**
- * Creates a new stonk in the database.
+ * Creates a new stonk with AMM initial state.
  */
 export async function createStonk(
     id: string,
     name: string,
     ticker: string,
     icon: string,
-    basePrice: number,
-    virtualLiquidity: number,
+    basePrice: number = DEFAULT_BASE_PRICE,
+    xVirt: number = DEFAULT_X_VIRT,
+    yVirt: number = DEFAULT_Y_VIRT,
     createdBy: string
 ): Promise<StonkState> {
     const now = Date.now();
+    
+    // Calculate initial price from reserves
+    const initialPrice = Math.round(xVirt / yVirt);
+    
     const stonk: StonkState = {
         id,
         name,
         ticker,
         icon,
-        basePrice,
-        currentPrice: basePrice,
-        virtualLiquidity,
+        xVirt,
+        yVirt,
+        xReal: 0,
+        yReal: 0,
+        basePrice: initialPrice,
+        currentPrice: initialPrice,
         totalVolume: 0,
         createdBy,
         createdAt: now,
@@ -50,9 +72,12 @@ export async function createStonk(
         name,
         ticker,
         icon,
-        basePrice: String(basePrice),
-        currentPrice: String(basePrice),
-        virtualLiquidity: String(virtualLiquidity),
+        xVirt: String(xVirt),
+        yVirt: String(yVirt),
+        xReal: '0',
+        yReal: '0',
+        basePrice: String(initialPrice),
+        currentPrice: String(initialPrice),
         totalVolume: '0',
         createdBy,
         createdAt: String(now),
@@ -72,7 +97,7 @@ export async function createStonk(
 }
 
 /**
- * Gets a stonk by ID.
+ * Gets a stonk by ID with full AMM state.
  */
 export async function getStonk(stonkId: string): Promise<StonkState | null> {
     const data = await redis.hGetAll(REDIS_KEYS.stonkState(stonkId));
@@ -83,13 +108,31 @@ export async function getStonk(stonkId: string): Promise<StonkState | null> {
         name: data.name || '',
         ticker: data.ticker || '',
         icon: data.icon || '',
-        basePrice: parseInt(data.basePrice || '0'),
-        currentPrice: parseInt(data.currentPrice || '0'),
-        virtualLiquidity: parseInt(data.virtualLiquidity || '0'),
+        xVirt: parseInt(data.xVirt || String(DEFAULT_X_VIRT)),
+        yVirt: parseFloat(data.yVirt || String(DEFAULT_Y_VIRT)),
+        xReal: parseInt(data.xReal || '0'),
+        yReal: parseFloat(data.yReal || '0'),
+        basePrice: parseInt(data.basePrice || String(DEFAULT_BASE_PRICE)),
+        currentPrice: parseInt(data.currentPrice || String(DEFAULT_BASE_PRICE)),
         totalVolume: parseInt(data.totalVolume || '0'),
         createdBy: data.createdBy || '',
         createdAt: parseInt(data.createdAt || '0'),
         active: data.active === 'true',
+    };
+}
+
+/**
+ * Gets AMM state only (for calculations).
+ */
+export async function getAMMState(stonkId: string): Promise<AMMState | null> {
+    const data = await redis.hGetAll(REDIS_KEYS.stonkState(stonkId));
+    if (!data || !data.id) return null;
+
+    return {
+        xVirt: parseInt(data.xVirt || String(DEFAULT_X_VIRT)),
+        yVirt: parseFloat(data.yVirt || String(DEFAULT_Y_VIRT)),
+        xReal: parseInt(data.xReal || '0'),
+        yReal: parseFloat(data.yReal || '0'),
     };
 }
 
@@ -113,17 +156,22 @@ export async function getAllStonks(): Promise<StonkState[]> {
 }
 
 /**
- * Updates a stonk's current price.
+ * Updates stonk AMM state and price after batch execution.
  */
-export async function updateStonkPrice(
+export async function updateStonkAMMState(
     stonkId: string,
+    newState: AMMState,
     newPrice: number,
     volume: number
 ): Promise<void> {
     const now = Date.now();
 
-    // Update current price
+    // Update AMM state and price
     await redis.hSet(REDIS_KEYS.stonkState(stonkId), {
+        xVirt: String(Math.round(newState.xVirt)),
+        yVirt: String(newState.yVirt),
+        xReal: String(Math.round(newState.xReal)),
+        yReal: String(newState.yReal),
         currentPrice: String(newPrice),
     });
 
@@ -157,6 +205,13 @@ export async function getPriceHistory(
     return entries.map((entry) => JSON.parse(entry.member) as PriceHistoryEntry).reverse();
 }
 
+/**
+ * Deletes price history for a stonk.
+ */
+export async function deletePriceHistory(stonkId: string): Promise<void> {
+    await redis.del(REDIS_KEYS.stonkHistory(stonkId));
+}
+
 // ============================================
 // BATCH OPERATIONS
 // ============================================
@@ -169,10 +224,12 @@ export async function addBuyVolume(stonkId: string, amount: number): Promise<num
 }
 
 /**
- * Adds sell volume to the current batch.
+ * Adds sell volume to the current batch (in shares, not cents).
  */
-export async function addSellVolume(stonkId: string, amount: number): Promise<number> {
-    return await redis.hIncrBy(REDIS_KEYS.stonkBatch(stonkId), 'sellVolume', amount);
+export async function addSellVolume(stonkId: string, shares: number): Promise<number> {
+    // Store as scaled integer to avoid floating point issues
+    const scaledShares = Math.round(shares * 10000);
+    return await redis.hIncrBy(REDIS_KEYS.stonkBatch(stonkId), 'sellVolume', scaledShares);
 }
 
 /**
@@ -183,7 +240,8 @@ export async function getAndResetBatch(
 ): Promise<{ buyVolume: number; sellVolume: number }> {
     const batch = await redis.hGetAll(REDIS_KEYS.stonkBatch(stonkId));
     const buyVolume = parseInt(batch?.buyVolume || '0');
-    const sellVolume = parseInt(batch?.sellVolume || '0');
+    // Unscale the sell volume
+    const sellVolume = parseInt(batch?.sellVolume || '0') / 10000;
 
     // Reset batch
     await redis.hSet(REDIS_KEYS.stonkBatch(stonkId), {
@@ -192,6 +250,93 @@ export async function getAndResetBatch(
     });
 
     return { buyVolume, sellVolume };
+}
+
+// ============================================
+// COOLDOWN OPERATIONS (Per-stonk rate limiting)
+// ============================================
+
+/**
+ * Check if user can spend the requested amount on a stonk.
+ * Returns remaining allowance and whether the full amount is allowed.
+ */
+export async function checkSpendLimit(
+    userId: string,
+    stonkId: string,
+    requestedAmount: number
+): Promise<SpendLimitResult> {
+    // Use time-bucketed key (1 minute buckets) to ensure strict window enforcement
+    // and preventing keys from getting stuck forever if TTL fails.
+    const bucket = Math.floor(Date.now() / (COOLDOWN_WINDOW_SECONDS * 1000));
+    const key = `${REDIS_KEYS.userSpend(userId, stonkId)}:${bucket}`;
+    
+    const currentSpent = await redis.get(key);
+    
+    const spent = currentSpent ? parseInt(currentSpent) : 0;
+    const remaining = USER_SPEND_LIMIT - spent;
+    
+    if (requestedAmount <= remaining) {
+        return {
+            allowed: true,
+            remaining,
+            spent,
+        };
+    }
+    
+    // Partial allowance - cap to remaining
+    if (remaining > 0) {
+        return {
+            allowed: false,
+            remaining,
+            spent,
+            cappedAmount: remaining,
+        };
+    }
+    
+    return {
+        allowed: false,
+        remaining: 0,
+        spent,
+    };
+}
+
+/**
+ * Record user spending on a stonk.
+ * Uses Redis TTL for automatic expiry (60 seconds).
+ */
+export async function recordSpending(
+    userId: string,
+    stonkId: string,
+    amount: number
+): Promise<void> {
+    const bucket = Math.floor(Date.now() / (COOLDOWN_WINDOW_SECONDS * 1000));
+    const key = `${REDIS_KEYS.userSpend(userId, stonkId)}:${bucket}`;
+    
+    // Atomically increment the bucket
+    await redis.incrBy(key, amount);
+    
+    // Set expiry for cleanup (2x window is plenty safe)
+    // We don't care if we set it repeatedly, as long as it eventually expires.
+    await redis.expire(key, COOLDOWN_WINDOW_SECONDS * 2);
+}
+
+/**
+ * Get user's current spending on a stonk (for display).
+ */
+export async function getUserSpending(
+    userId: string,
+    stonkId: string
+): Promise<{ spent: number; remaining: number }> {
+    const bucket = Math.floor(Date.now() / (COOLDOWN_WINDOW_SECONDS * 1000));
+    const key = `${REDIS_KEYS.userSpend(userId, stonkId)}:${bucket}`;
+    
+    const currentSpent = await redis.get(key);
+    
+    const spent = currentSpent ? parseInt(currentSpent) : 0;
+    return {
+        spent,
+        remaining: Math.max(0, USER_SPEND_LIMIT - spent),
+    };
 }
 
 // ============================================
@@ -262,6 +407,25 @@ export async function updatePortfolio(userId: string, portfolio: Portfolio): Pro
         portfolio: JSON.stringify(portfolio),
         lastTradeAt: String(Date.now()),
     });
+}
+
+/**
+ * Resets a user's data - wallet to starting balance, clear portfolio.
+ */
+export async function resetUser(userId: string, startingBalance: number): Promise<void> {
+    await redis.hSet(REDIS_KEYS.userData(userId), {
+        walletBalance: String(startingBalance),
+        portfolio: '{}',
+        lastTradeAt: '0',
+    });
+}
+
+/**
+ * Get all user IDs from leaderboard (to reset all users).
+ */
+export async function getAllUserIds(): Promise<string[]> {
+    const entries = await redis.zRange(REDIS_KEYS.LEADERBOARD, 0, -1, { by: 'rank' });
+    return entries.map(e => e.member);
 }
 
 // ============================================

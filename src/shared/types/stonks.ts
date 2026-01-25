@@ -7,16 +7,36 @@
 // STONK TYPES
 // ============================================
 
-/** Stonk state stored in Redis */
+/**
+ * Stonk state stored in Redis
+ * Uses AMM (Automated Market Maker) with constant-product formula: k = x * y
+ */
 export interface StonkState {
     id: string;
     name: string;
     ticker: string;
     icon: string;
-    basePrice: number;       // Initial price (cents)
-    currentPrice: number;    // Current price (cents)
-    virtualLiquidity: number; // Controls volatility
-    totalVolume: number;     // Lifetime trading volume
+    
+    // AMM Reserve State
+    xVirt: number;      // Virtual cash reserve (base liquidity)
+    yVirt: number;      // Virtual stock reserve (base liquidity)
+    xReal: number;      // Real cash added from trades
+    yReal: number;      // Real stock added from trades
+    
+    // Derived values (calculated, not stored)
+    // xTotal = xVirt + xReal
+    // yTotal = yVirt + yReal
+    // k = xTotal * yTotal
+    // spotPrice = xTotal / yTotal
+    
+    // Price tracking
+    basePrice: number;       // Initial price at creation (cents)
+    currentPrice: number;    // Current spot price (cents)
+    
+    // Volume tracking
+    totalVolume: number;     // Lifetime trading volume (cents)
+    
+    // Metadata
     createdBy: string;       // Mod user ID
     createdAt: number;       // Unix timestamp
     active: boolean;
@@ -46,7 +66,7 @@ export interface PriceHistoryEntry {
 
 /** User portfolio holding */
 export interface Holding {
-    qty: number;       // Quantity owned
+    qty: number;       // Quantity owned (can be fractional for AMM)
     avgPrice: number;  // Average buy price (cents)
 }
 
@@ -108,6 +128,55 @@ export interface TradeResponse {
     estimatedQuantity?: number;
 }
 
+/** Cooldown check result */
+export interface SpendLimitResult {
+    allowed: boolean;
+    remaining: number;      // Remaining allowance in cents
+    spent: number;          // Already spent this window in cents
+    cappedAmount?: number;  // If partially allowed, max amount user can spend
+}
+
+// ============================================
+// AMM TYPES
+// ============================================
+
+/** AMM state for calculations */
+export interface AMMState {
+    xVirt: number;
+    yVirt: number;
+    xReal: number;
+    yReal: number;
+}
+
+/** Batch order for AMM processing */
+export interface BatchOrder {
+    userId: string;
+    type: 'buy' | 'sell';
+    amount: number;  // Cents for buy, shares for sell
+}
+
+/** Result of batch execution */
+export interface BatchExecutionResult {
+    tick: number;
+    preBatchPrice: number;
+    postBatchPrice: number;
+    totalBuyVolume: number;
+    totalSellVolume: number;
+    priceChange: number;       // Percentage change
+    newK: number;
+    liquidityScaled: boolean;
+    buyExecution: {
+        cashAdded: number;
+        stockDistributed: number;
+        avgBuyPrice: number;
+    } | null;
+    sellExecution: {
+        sharesAdded: number;
+        cashPaidOut: number;
+        avgSellPrice: number;
+    } | null;
+}
+
 // ============================================
 // LEADERBOARD TYPES
 // ============================================
@@ -156,4 +225,5 @@ export interface StonkDetailResponse {
     stonk: StonkState;
     priceHistory: PriceHistoryEntry[];
     userHolding: Holding | null;
+    spendLimit: SpendLimitResult;  // User's remaining buy/sell allowance
 }

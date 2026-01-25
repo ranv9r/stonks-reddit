@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "pump-o-dump",
+  "name": "pump-o-dump2",
   "version": "0.0.0",
   "license": "BSD-3-Clause",
   "type": "module",
@@ -27,6 +27,7 @@
     "clsx": "2.1.1",
     "devvit": "0.12.8",
     "express": "5.1.0",
+    "lts": "^2.0.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "tailwind-merge": "3.3.0"

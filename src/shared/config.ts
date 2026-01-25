@@ -21,16 +21,75 @@ export const PRICE_TICK_CRON = '*/5 * * * * *';
 // ============================================
 
 /** Starting balance for each user when event starts (in cents) */
-export const STARTING_BALANCE = 1000000; // 10,000.00 coins
+export const STARTING_BALANCE = 1000000; // $10,000.00
 
-/** Default virtual liquidity for new stonks (controls volatility) */
-export const DEFAULT_VIRTUAL_LIQUIDITY = 10000000; // 100,000.00
+/** Default base price for new stonks (in cents) - $100 */
+export const DEFAULT_BASE_PRICE = 10000; // $100.00
 
 /** Minimum price floor for any stonk (in cents) */
-export const MIN_PRICE = 1; // 0.01 coins
+export const MIN_PRICE = 100; // $1.00 minimum
 
-/** Default base price for new stonks (in cents) */
-export const DEFAULT_BASE_PRICE = 100; // 1.00 coin
+// ============================================
+// AMM (Automated Market Maker) CONFIGURATION
+// Constant-product formula: k = x * y
+// ============================================
+
+/**
+ * Default virtual cash reserve for new stonks
+ * Combined with yVirt, this sets the initial liquidity depth
+ * Higher values = less volatile price movements
+ * 
+ * VOLATILITY TARGET: $4,000 buy → ~0.8% price change
+ */
+export const DEFAULT_X_VIRT = 100000000; // $1,000,000 virtual cash (in cents)
+
+/**
+ * Default virtual stock reserve for new stonks
+ * Calculated to achieve target base price: price = xVirt / yVirt
+ * $1,000,000 / 10,000 = $100 base price
+ */
+export const DEFAULT_Y_VIRT = 10000; // 10,000 virtual shares
+
+/**
+ * Initial k value (product of virtual reserves)
+ * k = 1,000,000 * 10,000 = 10 trillion (in cents²)
+ * This creates DEEP liquidity = stable prices
+ */
+export const INITIAL_K = DEFAULT_X_VIRT * DEFAULT_Y_VIRT;
+
+/**
+ * Liquidity scaling factor for anti-break mechanism
+ * When buy volume exceeds threshold, virtual reserves increase by this %
+ */
+export const LIQUIDITY_SCALE_ALPHA = 0.05; // 5% increase
+
+/**
+ * Volume threshold that triggers liquidity scaling (in cents)
+ * When buy volume in a batch exceeds this, k gets scaled up
+ */
+export const LIQUIDITY_SCALE_THRESHOLD = 500000; // $5,000
+
+// ============================================
+// COOLDOWN / RATE LIMITING CONFIGURATION
+// Prevents pump-and-dump exploits
+// ============================================
+
+/**
+ * Maximum amount a user can spend per stonk per cooldown window (in cents)
+ * Applies to both BUY (cash spent) and SELL (value at current price)
+ */
+export const USER_SPEND_LIMIT = 1000000; // $10,000 per stonk
+
+/**
+ * Cooldown window duration in milliseconds
+ * User's spending on each stonk resets after this period
+ */
+export const COOLDOWN_WINDOW_MS = 60000; // 1 minute
+
+/**
+ * Cooldown window in seconds (for Redis TTL)
+ */
+export const COOLDOWN_WINDOW_SECONDS = 60;
 
 // ============================================
 // LEADERBOARD CONFIGURATION
@@ -54,27 +113,30 @@ export const MAX_PRICE_HISTORY_ENTRIES = 10000;
 // ============================================
 
 export const REDIS_KEYS = {
-  /** Global game configuration */
-  GAME_CONFIG: 'game:config',
+    /** Global game configuration */
+    GAME_CONFIG: 'game:config',
 
-  /** Last tick timestamp */
-  LAST_TICK: 'game:lastTick',
+    /** Last tick timestamp */
+    LAST_TICK: 'game:lastTick',
 
-  /** Set of all stonk IDs */
-  STONKS_LIST: 'stonks:list',
+    /** Set of all stonk IDs */
+    STONKS_LIST: 'stonks:list',
 
-  /** Stonk state hash - use with stonkId */
-  stonkState: (stonkId: string) => `stonk:${stonkId}:state`,
+    /** Stonk state hash - use with stonkId */
+    stonkState: (stonkId: string) => `stonk:${stonkId}:state`,
 
-  /** Stonk batch aggregation hash - use with stonkId */
-  stonkBatch: (stonkId: string) => `stonk:${stonkId}:batch`,
+    /** Stonk batch aggregation hash - use with stonkId */
+    stonkBatch: (stonkId: string) => `stonk:${stonkId}:batch`,
 
-  /** Stonk price history sorted set - use with stonkId */
-  stonkHistory: (stonkId: string) => `stonk:${stonkId}:history`,
+    /** Stonk price history sorted set - use with stonkId */
+    stonkHistory: (stonkId: string) => `stonk:${stonkId}:history`,
 
-  /** User data hash - use with oderId */
-  userData: (userId: string) => `user:${userId}`,
+    /** User data hash - use with userId */
+    userData: (userId: string) => `user:${userId}`,
 
-  /** Leaderboard sorted set */
-  LEADERBOARD: 'leaderboard',
+    /** User spending cooldown per stonk - auto-expires with TTL */
+    userSpend: (userId: string, stonkId: string) => `user:${userId}:spend:${stonkId}`,
+
+    /** Leaderboard sorted set */
+    LEADERBOARD: 'leaderboard',
 } as const;

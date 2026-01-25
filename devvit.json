@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "pump-o-dump",
+  "name": "pump-o-dump2",
   "post": {
     "dir": "dist/client",
     "entrypoints": {
@@ -57,6 +57,27 @@
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/start-event"
+      },
+      {
+        "label": "🔄 Reset Game Data",
+        "description": "Reset all stocks to $100 and clear user data",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/reset-game"
+      },
+      {
+        "label": "⚡ Start Stress Test",
+        "description": "Simulate 100 bots trading for 5 mins",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/stress/start"
+      },
+      {
+        "label": "🛑 Stop Stress Test",
+        "description": "Halt bot trading simulation",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/stress/stop"
       }
     ]
   },
@@ -64,6 +85,6 @@
     "onAppInstall": "/internal/triggers/on-app-install"
   },
   "dev": {
-    "subreddit": "pump_o_dump_dev2"
+    "subreddit": "pump_o_dump2_dev"
   }
 }

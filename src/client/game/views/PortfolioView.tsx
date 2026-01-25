@@ -108,7 +108,7 @@ export const PortfolioView = ({ onStonkClick }: PortfolioViewProps) => {
                                 <div className="text-left">
                                     <div className="font-bold text-white">{holding.ticker}</div>
                                     <div className="text-xs text-gray-400">
-                                        {holding.quantity} shares
+                                        {holding.quantity.toFixed(2)} shares
                                     </div>
                                 </div>
                             </div>

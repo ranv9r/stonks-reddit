@@ -40,6 +40,64 @@ interface StockDetailViewProps {
     onBack: () => void;
 }
 
+const SimpleChart = ({ data }: { data: PriceHistoryEntry[] }) => {
+    if (!data || data.length < 2) return <div className="text-gray-500 text-sm flex items-center justify-center h-full">Not enough data</div>;
+
+    const prices = data.map(d => d.p);
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const range = max - min || 1;
+
+    // SVG Dimensions (viewBox units)
+    const width = 100;
+    const height = 100;
+
+    // Create points
+    const points = data.map((d, i) => {
+        const x = (i / (data.length - 1)) * width;
+        const normalizedY = (d.p - min) / range;
+        const y = height - (normalizedY * height * 0.8) - (height * 0.1); // Add padding
+        return `${x},${y}`;
+    }).join(' ');
+
+    const isPositive = (prices[prices.length - 1] ?? 0) >= (prices[0] ?? 0);
+    const color = isPositive ? '#00D084' : '#FF4444';
+
+    // Create fill area (closed path)
+    const fillPoints = `${points} ${width},${height} 0,${height}`;
+
+    return (
+        <div className="relative w-full h-full pr-10">
+            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible" preserveAspectRatio="none">
+                <defs>
+                    <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+                        <stop offset="100%" stopColor={color} stopOpacity="0" />
+                    </linearGradient>
+                </defs>
+                <polygon
+                    points={fillPoints}
+                    fill="url(#chartGradient)"
+                />
+                <polyline
+                    fill="none"
+                    stroke={color}
+                    strokeWidth="2"
+                    points={points}
+                    vectorEffect="non-scaling-stroke"
+                />
+            </svg>
+            {/* Y-Axis Labels */}
+            <div className="absolute top-0 right-0 text-xs text-gray-500 font-mono">
+                ${(max / 100).toFixed(2)}
+            </div>
+            <div className="absolute bottom-4 right-0 text-xs text-gray-500 font-mono">
+                ${(min / 100).toFixed(2)}
+            </div>
+        </div>
+    );
+};
+
 export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
     const [data, setData] = useState<StockDetailData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -79,13 +137,26 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
         setTradeMessage(null);
 
         try {
+            let payloadAmount = 0;
+            if (action === 'buy') {
+                // Buy: Input is in Dollars -> Convert to cents
+                payloadAmount = Math.floor(parseFloat(amount) * 100);
+            } else {
+                // Sell: Input is in Dollars -> Convert to shares
+                // data.stonk.currentPrice is in cents
+                if (data && data.stonk.currentPrice > 0) {
+                    const priceDollars = data.stonk.currentPrice / 100;
+                    payloadAmount = parseFloat(amount) / priceDollars;
+                }
+            }
+
             const res = await fetch('/api/trade', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     stonkId,
                     action,
-                    amount: Math.floor(parseFloat(amount) * 100), // Convert to cents
+                    amount: payloadAmount,
                 }),
             });
 
@@ -168,10 +239,10 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
                 </div>
             </div>
 
-            {/* Chart Placeholder */}
+            {/* Price Chart */}
             <div className="px-4 py-6 flex-1 overflow-auto">
-                <div className="bg-[#1A1A1B] rounded-lg p-4 h-48 flex items-center justify-center">
-                    <div className="text-gray-500 text-sm">📈 Price chart coming soon</div>
+                <div className="bg-[#1A1A1B] rounded-lg p-4 h-48 mb-4">
+                    <SimpleChart data={priceHistory} />
                 </div>
 
                 {/* User Holding */}
@@ -180,7 +251,7 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
                         <div className="text-gray-400 text-sm mb-2">Your Position</div>
                         <div className="flex justify-between">
                             <div>
-                                <div className="text-white font-medium">{userHolding.qty} shares</div>
+                                <div className="text-white font-medium">{userHolding.qty.toFixed(2)} shares</div>
                                 <div className="text-gray-400 text-sm">
                                     Avg: ${(userHolding.avgPrice / 100).toFixed(2)}
                                 </div>
@@ -191,8 +262,8 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
                                 </div>
                                 <div
                                     className={`text-sm ${stonk.currentPrice >= userHolding.avgPrice
-                                            ? 'text-[#00D084]'
-                                            : 'text-[#FF4444]'
+                                        ? 'text-[#00D084]'
+                                        : 'text-[#FF4444]'
                                         }`}
                                 >
                                     {stonk.currentPrice >= userHolding.avgPrice ? '+' : ''}
@@ -200,6 +271,20 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
                                 </div>
                             </div>
                         </div>
+                        {/* Exit Position Button */}
+                        <button
+                            onClick={() => {
+                                setAction('sell');
+                                // Calculate total value in dollars, truncating to 2 decimals (floor)
+                                // to avoid rounding up and exceeding actual share balance.
+                                const val = (userHolding.qty * stonk.currentPrice) / 100;
+                                const safeVal = Math.floor(val * 100) / 100;
+                                setAmount(safeVal.toFixed(2));
+                            }}
+                            className="mt-3 w-full py-2 bg-[#2d1a1a] border border-[#FF4444] text-[#FF4444] rounded text-sm hover:bg-[#3d2a2a] transition-colors"
+                        >
+                            Exit Position (Sell All)
+                        </button>
                     </div>
                 )}
             </div>
@@ -211,8 +296,8 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
                     <button
                         onClick={() => setAction('buy')}
                         className={`flex-1 py-2 rounded-lg font-medium transition-colors ${action === 'buy'
-                                ? 'bg-[#FF4500] text-white'
-                                : 'bg-[#1A1A1B] text-gray-400'
+                            ? 'bg-[#FF4500] text-white'
+                            : 'bg-[#1A1A1B] text-gray-400'
                             }`}
                     >
                         Buy
@@ -220,8 +305,8 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
                     <button
                         onClick={() => setAction('sell')}
                         className={`flex-1 py-2 rounded-lg font-medium transition-colors ${action === 'sell'
-                                ? 'bg-[#1A1A1B] text-[#FF4444] border border-[#FF4444]'
-                                : 'bg-[#1A1A1B] text-gray-400'
+                            ? 'bg-[#1A1A1B] text-[#FF4444] border border-[#FF4444]'
+                            : 'bg-[#1A1A1B] text-gray-400'
                             }`}
                     >
                         Sell
@@ -231,16 +316,25 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
                 {/* Amount Input */}
                 <div className="mb-4">
                     <label className="block text-gray-400 text-sm mb-2">
-                        {action === 'buy' ? 'Amount (coins)' : 'Quantity (shares)'}
+                        {action === 'buy' ? 'Amount ($)' : 'Amount ($ to sell)'}
                     </label>
                     <input
                         type="number"
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
-                        placeholder={action === 'buy' ? '100.00' : '10'}
+                        placeholder="100.00"
                         className="w-full bg-[#1A1A1B] text-white rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#FF4500]"
                         disabled={trading}
                     />
+                    {/* Est. Shares Helper */}
+                    {amount && !isNaN(parseFloat(amount)) && (
+                        <div className="text-xs text-gray-500 mt-2 text-right">
+                            {action === 'buy'
+                                ? `Est. Shares: ~${(parseFloat(amount) / (stonk.currentPrice / 100)).toFixed(2)}`
+                                : `Est. Shares to Sell: ~${(parseFloat(amount) / (stonk.currentPrice / 100)).toFixed(2)}`
+                            }
+                        </div>
+                    )}
                 </div>
 
                 {/* Trade Message */}
@@ -255,8 +349,8 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
                     onClick={handleTrade}
                     disabled={trading || !amount}
                     className={`w-full py-3 rounded-lg font-medium transition-colors ${action === 'buy'
-                            ? 'bg-[#FF4500] text-white hover:bg-[#ff5722] disabled:opacity-50'
-                            : 'bg-[#1A1A1B] text-[#FF4444] border border-[#FF4444] hover:bg-[#252525] disabled:opacity-50'
+                        ? 'bg-[#FF4500] text-white hover:bg-[#ff5722] disabled:opacity-50'
+                        : 'bg-[#1A1A1B] text-[#FF4444] border border-[#FF4444] hover:bg-[#252525] disabled:opacity-50'
                         }`}
                 >
                     {trading ? 'Processing...' : action === 'buy' ? 'Buy' : 'Sell'}

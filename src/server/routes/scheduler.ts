@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import * as tradingEngine from '../services/tradingEngine';
 import * as leaderboardService from '../services/leaderboardService';
+import * as stressTestService from '../services/stressTestService';
 
 const router = Router();
 
@@ -18,6 +19,9 @@ router.post('/internal/scheduler/price-tick', async (_req, res) => {
         console.log(`[Price Tick] Starting at ${new Date().toISOString()}`);
 
         await tradingEngine.resolveBatches();
+        
+        // Run stress test tick if active
+        await stressTestService.tick();
 
         console.log(`[Price Tick] Completed at ${new Date().toISOString()}`);
         res.status(200).json({ status: 'ok' });

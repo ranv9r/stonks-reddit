@@ -39,7 +39,7 @@ router.get('/api/market', async (_req, res) => {
         const stonkDisplays: StonkDisplay[] = await Promise.all(
             stonks.map(async (stonk) => {
                 const history = await redisService.getPriceHistory(stonk.id, 2);
-                const previousPrice = history.length > 1 ? history[0].p : stonk.basePrice;
+                const previousPrice = history.length > 1 && history[0] ? history[0].p : stonk.basePrice;
                 const priceChange = stonk.currentPrice - previousPrice;
                 const priceChangePercent = previousPrice > 0
                     ? ((priceChange / previousPrice) * 100)
@@ -86,17 +86,21 @@ router.get('/api/stonk/:id', async (req, res) => {
 
         const priceHistory = await redisService.getPriceHistory(id, 100);
 
-        // Get user's holding if logged in
+        // Get user's holding and spend limit if logged in
         let userHolding = null;
+        let spendLimit = { allowed: true, remaining: 1000000, spent: 0 };
+        
         if (userId) {
             const user = await redisService.getUser(userId);
             userHolding = user?.portfolio[id] || null;
+            spendLimit = await tradingEngine.getUserSpendLimit(userId, id);
         }
 
         const response: StonkDetailResponse = {
             stonk,
             priceHistory,
             userHolding,
+            spendLimit,
         };
 
         res.json(response);
@@ -187,14 +191,16 @@ router.get('/api/portfolio', async (_req, res) => {
             holdings.map(async (h) => {
                 const stonk = await redisService.getStonk(h.stonkId);
                 const holding = user.portfolio[h.stonkId];
-                const costBasis = holding.qty * holding.avgPrice;
+                const costBasis = holding?.qty && holding?.avgPrice 
+                    ? holding.qty * holding.avgPrice 
+                    : 0;
 
                 return {
                     stonkId: h.stonkId,
                     ticker: stonk?.ticker || h.stonkId,
                     icon: stonk?.icon || '📈',
                     quantity: h.quantity,
-                    avgBuyPrice: holding.avgPrice,
+                    avgBuyPrice: holding?.avgPrice || 0,
                     currentPrice: stonk?.currentPrice || 0,
                     currentValue: h.currentValue,
                     profitLoss: h.profitLoss,

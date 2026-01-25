@@ -1,39 +1,21 @@
 /**
  * Trading engine service for Meme Stonks.
- * Handles price calculation and trade execution.
- */
-
-import { MIN_PRICE } from '../../shared/config';
-import type { Portfolio } from '../../shared/types/stonks';
-import * as redisService from './redis';
-
-// ============================================
-// PRICE CALCULATION
-// ============================================
-
-/**
- * Calculates new price based on buy/sell volume imbalance.
- * Uses the placeholder linear formula from requirements.
+ * Handles trade execution with AMM pricing and cooldown protection.
  * 
- * Formula: New_Price = Old_Price * (1 + (Buy_Vol - Sell_Vol) / Virtual_Liquidity)
+ * Key features:
+ * - Constant-product AMM (k = x * y)
+ * - Sell-first, buy-later execution order
+ * - $10,000/min cooldown per user per stonk
  */
-export function calculateNewPrice(
-    oldPrice: number,
-    buyVolume: number,
-    sellVolume: number,
-    virtualLiquidity: number
-): number {
-    // Handle edge case of zero liquidity
-    if (virtualLiquidity <= 0) {
-        return oldPrice;
-    }
 
-    const imbalance = (buyVolume - sellVolume) / virtualLiquidity;
-    const newPrice = Math.round(oldPrice * (1 + imbalance));
+import { USER_SPEND_LIMIT } from '../../shared/config';
+import type { Portfolio, AMMState, BatchOrder, SpendLimitResult } from '../../shared/types/stonks';
+import * as redisService from './redis';
+import * as ammEngine from './ammEngine';
 
-    // Ensure minimum price floor
-    return Math.max(newPrice, MIN_PRICE);
-}
+// ============================================
+// PRICE ESTIMATION (for UI previews)
+// ============================================
 
 /**
  * Estimates the price after a potential trade.
@@ -43,37 +25,36 @@ export async function estimateTradePrice(
     stonkId: string,
     action: 'buy' | 'sell',
     amount: number
-): Promise<{ estimatedPrice: number; estimatedQuantity: number }> {
-    const stonk = await redisService.getStonk(stonkId);
-    if (!stonk) {
+): Promise<{ estimatedPrice: number; estimatedQuantity: number; priceImpact: number }> {
+    const state = await redisService.getAMMState(stonkId);
+    if (!state) {
         throw new Error('Stonk not found');
     }
 
-    // For estimation, assume current batch is empty (worst case)
-    const buyVol = action === 'buy' ? amount : 0;
-    const sellVol = action === 'sell' ? amount * stonk.currentPrice : 0;
-
-    const estimatedPrice = calculateNewPrice(
-        stonk.currentPrice,
-        buyVol,
-        sellVol,
-        stonk.virtualLiquidity
-    );
-
-    // Calculate estimated quantity for buy orders
-    const estimatedQuantity = action === 'buy'
-        ? Math.floor(amount / estimatedPrice)
-        : amount;
-
-    return { estimatedPrice, estimatedQuantity };
+    if (action === 'buy') {
+        const estimate = ammEngine.estimateBuy(state, amount);
+        return {
+            estimatedPrice: estimate.estimatedPrice,
+            estimatedQuantity: estimate.estimatedShares,
+            priceImpact: estimate.priceImpact,
+        };
+    } else {
+        const estimate = ammEngine.estimateSell(state, amount);
+        return {
+            estimatedPrice: estimate.estimatedPrice,
+            estimatedQuantity: amount,
+            priceImpact: estimate.priceImpact,
+        };
+    }
 }
 
 // ============================================
-// TRADE EXECUTION
+// TRADE EXECUTION WITH COOLDOWN
 // ============================================
 
 /**
  * Executes a buy order by adding to the batch.
+ * Enforces per-stonk cooldown limits.
  * Deducts from user wallet immediately but shares are credited after tick.
  */
 export async function executeBuy(
@@ -81,15 +62,33 @@ export async function executeBuy(
     stonkId: string,
     amount: number, // Amount in coins (cents)
     startingBalance: number
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message: string; actualAmount?: number }> {
+    // Check cooldown limit first
+    const limitCheck = await redisService.checkSpendLimit(userId, stonkId, amount);
+    
+    let actualAmount = amount;
+    if (!limitCheck.allowed) {
+        if (limitCheck.cappedAmount && limitCheck.cappedAmount > 0) {
+            // Partial order - cap to remaining
+            actualAmount = limitCheck.cappedAmount;
+        } else {
+            // No remaining allowance
+            const remainingSeconds = 60; // Approximate, actual TTL unknown
+            return {
+                success: false,
+                message: `Cooldown active. You've spent $${(limitCheck.spent / 100).toFixed(2)} of $${(USER_SPEND_LIMIT / 100).toFixed(2)} on this stonk. Try again in ~${remainingSeconds}s.`,
+            };
+        }
+    }
+
     // Get or create user
     const user = await redisService.getOrCreateUser(userId, startingBalance);
 
     // Check sufficient balance
-    if (user.walletBalance < amount) {
+    if (user.walletBalance < actualAmount) {
         return {
             success: false,
-            message: `Insufficient balance. You have ${user.walletBalance / 100} coins.`,
+            message: `Insufficient balance. You have $${(user.walletBalance / 100).toFixed(2)}.`,
         };
     }
 
@@ -102,20 +101,73 @@ export async function executeBuy(
         };
     }
 
-    // Deduct from wallet
-    await redisService.updateWalletBalance(userId, -amount);
+    // --- INSTANT EXECUTION ---
 
-    // Add to batch buy volume
-    await redisService.addBuyVolume(stonkId, amount);
+    // 1. Calculate result using AMM engine
+    const currentState: AMMState = {
+        xVirt: stonk.xVirt,
+        yVirt: stonk.yVirt,
+        xReal: stonk.xReal,
+        yReal: stonk.yReal,
+    };
+
+    const { newState, stockDistributed, avgBuyPrice } = ammEngine.executeBuyBatch(
+        currentState,
+        actualAmount
+    );
+
+    // 2. Update Stonk State in Redis
+    const newPrice = ammEngine.getSpotPrice(newState);
+    await redisService.updateStonkAMMState(
+        stonk.id,
+        newState,
+        newPrice,
+        actualAmount // Add to volume
+    );
+
+    // 3. Update User Wallet (Deduct Cash)
+    await redisService.updateWalletBalance(userId, -actualAmount);
+
+    // 4. Update User Portfolio (Add Shares)
+    const updatedPortfolio: Portfolio = { ...user.portfolio };
+    const existingHolding = updatedPortfolio[stonkId];
+
+    if (existingHolding) {
+        // Calculate new weighted moving average price
+        const totalCost = (existingHolding.qty * existingHolding.avgPrice) + (stockDistributed * avgBuyPrice);
+        const totalQty = existingHolding.qty + stockDistributed;
+        
+        updatedPortfolio[stonkId] = {
+            qty: totalQty,
+            avgPrice: totalCost / totalQty
+        };
+    } else {
+        // New holding
+        updatedPortfolio[stonkId] = {
+            qty: stockDistributed,
+            avgPrice: avgBuyPrice
+        };
+    }
+    
+    await redisService.updatePortfolio(userId, updatedPortfolio);
+
+    // 5. Record spending for cooldown
+    await redisService.recordSpending(userId, stonkId, actualAmount);
+
+    const message = actualAmount < amount
+        ? `Partial buy for $${(actualAmount / 100).toFixed(2)} (${stockDistributed.toFixed(4)} shares).`
+        : `Bought ${stockDistributed.toFixed(4)} shares for $${(actualAmount / 100).toFixed(2)}.`;
 
     return {
         success: true,
-        message: `Buy order for ${amount / 100} coins submitted. Will execute on next tick.`,
+        message,
+        actualAmount,
     };
 }
 
 /**
  * Executes a sell order by adding to the batch.
+ * Enforces per-stonk cooldown limits based on sell value.
  * Shares are deducted immediately but coins are credited after tick.
  */
 export async function executeSell(
@@ -123,19 +175,9 @@ export async function executeSell(
     stonkId: string,
     quantity: number, // Number of shares to sell
     startingBalance: number
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message: string; actualQuantity?: number }> {
     // Get or create user
     const user = await redisService.getOrCreateUser(userId, startingBalance);
-
-    // Check user has enough shares
-    const holding = user.portfolio[stonkId];
-    if (!holding || holding.qty < quantity) {
-        const owned = holding?.qty || 0;
-        return {
-            success: false,
-            message: `Insufficient shares. You own ${owned}.`,
-        };
-    }
 
     // Check stonk exists and is active
     const stonk = await redisService.getStonk(stonkId);
@@ -146,27 +188,108 @@ export async function executeSell(
         };
     }
 
-    // Deduct shares from portfolio
+    // Check user has enough shares
+    const holding = user.portfolio[stonkId];
+    if (!holding || holding.qty < quantity) {
+        const owned = holding?.qty || 0;
+        const val = (owned * stonk.currentPrice) / 100;
+        return {
+            success: false,
+            message: `Insufficient shares. You own ${owned.toFixed(2)} ($${val.toFixed(2)}).`,
+        };
+    }
+
+    // Calculate estimated sell value for cooldown check
+    // Note: Actual value might differ slightly after execution due to price impact
+    const estimatedValue = Math.round(quantity * stonk.currentPrice);
+    
+    // Check cooldown limit (sell limits based on estimated value)
+    const limitCheck = await redisService.checkSpendLimit(userId, stonkId, estimatedValue);
+    
+    let actualQuantity = quantity;
+    
+    if (!limitCheck.allowed) {
+        if (limitCheck.cappedAmount && limitCheck.cappedAmount > 0) {
+            // Partial order - cap based on allowed value
+            // We approximate shares: allowedValue / currentPrice
+            actualQuantity = limitCheck.cappedAmount / stonk.currentPrice;
+        } else {
+            // No remaining allowance
+            return {
+                success: false,
+                message: `Cooldown active. You've traded $${(limitCheck.spent / 100).toFixed(2)} of $${(USER_SPEND_LIMIT / 100).toFixed(2)} on this stonk. Try again soon.`,
+            };
+        }
+    }
+
+    // Verify we can still sell the capped quantity
+    if (actualQuantity > holding.qty) {
+        actualQuantity = holding.qty;
+    }
+
+    if (actualQuantity <= 0) {
+         return {
+            success: false,
+            message: `Sell amount too small.`,
+        };
+    }
+
+    // --- INSTANT EXECUTION ---
+
+    // 1. Calculate result using AMM engine
+    const currentState: AMMState = {
+        xVirt: stonk.xVirt,
+        yVirt: stonk.yVirt,
+        xReal: stonk.xReal,
+        yReal: stonk.yReal,
+    };
+
+    // Calculate actual shares to sell (rounding/types check if needed, but number is fine)
+    
+    const { newState, cashPaidOut, avgSellPrice } = ammEngine.executeSellBatch(
+        currentState,
+        actualQuantity
+    );
+    
+    const actualValue = cashPaidOut;
+
+    // 2. Update Stonk State in Redis
+    const newPrice = ammEngine.getSpotPrice(newState);
+    await redisService.updateStonkAMMState(
+        stonk.id,
+        newState,
+        newPrice,
+        Math.round(actualValue) // Add to volume
+    );
+
+    // 3. Update User Wallet (Credit Cash)
+    await redisService.updateWalletBalance(userId, Math.round(actualValue));
+
+    // 4. Update User Portfolio (Remove Shares)
     const updatedPortfolio: Portfolio = { ...user.portfolio };
     updatedPortfolio[stonkId] = {
         ...holding,
-        qty: holding.qty - quantity,
+        qty: holding.qty - actualQuantity,
     };
 
-    // Remove from portfolio if zero shares
-    if (updatedPortfolio[stonkId].qty <= 0) {
+    // Remove from portfolio if zero (or near zero) shares
+    if (updatedPortfolio[stonkId].qty <= 0.0001) {
         delete updatedPortfolio[stonkId];
     }
 
     await redisService.updatePortfolio(userId, updatedPortfolio);
 
-    // Add to batch sell volume (convert to coin value at current price)
-    const sellValue = quantity * stonk.currentPrice;
-    await redisService.addSellVolume(stonkId, sellValue);
+    // 5. Record spending for cooldown
+    await redisService.recordSpending(userId, stonkId, Math.round(actualValue));
+
+    const message = actualQuantity < quantity
+        ? `Partial sell for ${actualQuantity.toFixed(4)} shares ($${(actualValue/100).toFixed(2)}).`
+        : `Sold ${actualQuantity.toFixed(4)} shares for $${(actualValue/100).toFixed(2)}.`;
 
     return {
         success: true,
-        message: `Sell order for ${quantity} shares submitted. Will execute on next tick.`,
+        message,
+        actualQuantity,
     };
 }
 
@@ -175,39 +298,14 @@ export async function executeSell(
 // ============================================
 
 /**
- * Resolves all pending batches and updates prices.
+ * Resolves all pending batches using AMM engine.
  * This should be called by the 5-second tick job.
+ * 
+ * Execution order: SELL-FIRST, BUY-LATER
  */
 export async function resolveBatches(): Promise<void> {
-    const stonks = await redisService.getAllStonks();
-
-    for (const stonk of stonks) {
-        const { buyVolume, sellVolume } = await redisService.getAndResetBatch(stonk.id);
-
-        // Skip if no activity
-        if (buyVolume === 0 && sellVolume === 0) {
-            continue;
-        }
-
-        // Calculate new price
-        const newPrice = calculateNewPrice(
-            stonk.currentPrice,
-            buyVolume,
-            sellVolume,
-            stonk.virtualLiquidity
-        );
-
-        // Update stonk price and history
-        const totalVolume = buyVolume + sellVolume;
-        await redisService.updateStonkPrice(stonk.id, newPrice, totalVolume);
-
-        console.log(
-            `[Tick] ${stonk.ticker}: ${stonk.currentPrice / 100} -> ${newPrice / 100} ` +
-            `(buy: ${buyVolume / 100}, sell: ${sellVolume / 100})`
-        );
-    }
-
-    // Update last tick timestamp
+    // Disabled. Trades are now instant.
+    // We can clear any stuck batches if we wanted, but ignoring is fine.
     await redisService.setLastTick(Date.now());
 }
 
@@ -242,15 +340,18 @@ export async function calculatePortfolioValue(
 
     for (const [stonkId, holding] of Object.entries(user.portfolio)) {
         const stonk = await redisService.getStonk(stonkId);
-        if (!stonk) continue;
+        if (!stonk || !holding) continue;
 
-        const currentValue = holding.qty * stonk.currentPrice;
-        const costBasis = holding.qty * holding.avgPrice;
+        const qty = holding.qty || 0;
+        const avgPrice = holding.avgPrice || 0;
+        
+        const currentValue = qty * stonk.currentPrice;
+        const costBasis = qty * avgPrice;
         const profitLoss = currentValue - costBasis;
 
         holdings.push({
             stonkId,
-            quantity: holding.qty,
+            quantity: qty,
             currentValue,
             profitLoss,
         });
@@ -272,4 +373,19 @@ export async function calculateNetWorth(
     const { totalValue } = await calculatePortfolioValue(userId, startingBalance);
 
     return user.walletBalance + totalValue;
+}
+
+/**
+ * Gets user's spend limit status for a specific stonk.
+ */
+export async function getUserSpendLimit(
+    userId: string,
+    stonkId: string
+): Promise<SpendLimitResult> {
+    const { spent, remaining } = await redisService.getUserSpending(userId, stonkId);
+    return {
+        allowed: remaining > 0,
+        remaining,
+        spent,
+    };
 }
