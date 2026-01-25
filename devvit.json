@@ -20,19 +20,48 @@
   "media": {
     "dir": "assets"
   },
+  "permissions": {
+    "redis": true
+  },
+  "scheduler": {
+    "tasks": {
+      "price-tick": {
+        "endpoint": "/internal/scheduler/price-tick",
+        "cron": "*/5 * * * * *"
+      },
+      "leaderboard-update": {
+        "endpoint": "/internal/scheduler/leaderboard-update",
+        "cron": "*/30 * * * *"
+      }
+    }
+  },
   "menu": {
     "items": [
       {
-        "label": "Create a new post",
-        "description": "pump-o-dump",
+        "label": "Create Stonks Trading Post",
+        "description": "Start a meme stock trading game",
         "location": "subreddit",
         "forUserType": "moderator",
-        "endpoint": "/internal/menu/post-create"
+        "endpoint": "/internal/menu/create-game-post"
+      },
+      {
+        "label": "Manage Stonks",
+        "description": "Add or configure tradable stonks",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/manage-stonks"
+      },
+      {
+        "label": "Start Trading Event",
+        "description": "Give all users starting balance and begin trading",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/start-event"
       }
     ]
   },
   "triggers": {
-    "onAppInstall": "/internal/on-app-install"
+    "onAppInstall": "/internal/triggers/on-app-install"
   },
   "dev": {
     "subreddit": "pump_o_dump_dev2"
