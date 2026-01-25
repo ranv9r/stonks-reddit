@@ -1,1 +1,237 @@
 @import 'tailwindcss';
+
+/* ============================================
+   MEME STONKS DESIGN SYSTEM
+   Solid Black + Reddit Orange Theme
+   ============================================ */
+
+:root {
+  /* Colors */
+  --color-bg-primary: #000000;
+  --color-bg-secondary: #1A1A1B;
+  --color-accent-primary: #FF4500;
+  --color-accent-hover: #ff5722;
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #9ca3af;
+  --color-success: #00D084;
+  --color-danger: #FF4444;
+  --color-border: #2d2d2d;
+
+  /* Spacing */
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* ============================================
+   RESPONSIVE UTILITIES
+   ============================================ */
+
+/* Mobile-first approach */
+.container-responsive {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-md);
+}
+
+@media (min-width: 768px) {
+  .container-responsive {
+    padding: 0 var(--spacing-lg);
+  }
+}
+
+@media (min-width: 1024px) {
+  .container-responsive {
+    padding: 0 var(--spacing-xl);
+  }
+}
+
+/* ============================================
+   SCROLLBAR
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-bg-secondary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2d2d2d;
+}
+
+/* ============================================
+   CUSTOM COMPONENTS
+   ============================================ */
+
+/* Card Component */
+.card {
+  background: var(--color-bg-secondary);
+  border-radius: 12px;
+  padding: var(--spacing-md);
+  transition: all 0.2s ease;
+}
+
+.card:hover {
+  background: #252525;
+}
+
+@media (min-width: 768px) {
+  .card {
+    border-radius: 16px;
+    padding: var(--spacing-lg);
+  }
+}
+
+/* Button Component */
+.btn {
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Touch targets for mobile */
+@media (max-width: 767px) {
+  .btn {
+    min-height: 44px;
+    /* iOS minimum touch target */
+  }
+
+  button,
+  a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* ============================================
+   RESPONSIVE TEXT
+   ============================================ */
+
+.text-display {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+@media (min-width: 768px) {
+  .text-display {
+    font-size: 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .text-display {
+    font-size: 2.5rem;
+  }
+}
+
+/* ============================================
+   SAFE AREA (for notched devices)
+   ============================================ */
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* ============================================
+   GRID LAYOUTS
+   ============================================ */
+
+.grid-auto-fill {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--spacing-md);
+}
+
+@media (min-width: 768px) {
+  .grid-auto-fill {
+    gap: var(--spacing-lg);
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+/* Focus visible for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+
+/* Reduced motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

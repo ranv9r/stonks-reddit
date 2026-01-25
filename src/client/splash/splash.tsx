@@ -2,53 +2,96 @@ import '../index.css';
 
 import { navigateTo } from '@devvit/web/client';
 import { context, requestExpandedMode } from '@devvit/web/client';
-import { StrictMode } from 'react';
+import { StrictMode, useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 
+interface StonkPreview {
+  ticker: string;
+  icon: string;
+  currentPrice: number;
+  priceChangePercent: number;
+}
+
 export const Splash = () => {
+  const [stonks, setStonks] = useState<StonkPreview[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchMarketPreview();
+  }, []);
+
+  const fetchMarketPreview = async () => {
+    try {
+      const res = await fetch('/api/market');
+      if (res.ok) {
+        const data = await res.json();
+        setStonks(data.stonks.slice(0, 3)); // Top 3 stonks
+      }
+    } catch (err) {
+      console.error('Failed to fetch market preview:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="flex relative flex-col justify-center items-center min-h-screen gap-4">
-      <img className="object-contain w-1/2 max-w-[250px] mx-auto" src="/snoo.png" alt="Snoo" />
-      <div className="flex flex-col items-center gap-2">
-        <h1 className="text-2xl font-bold text-center text-gray-900 ">
-          Hey {context.username ?? 'user'} 👋
+    <div className="flex relative flex-col justify-center items-center min-h-screen gap-6 p-4 bg-black">
+      {/* Logo/Title */}
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-white mb-2">
+          📈 Meme Stonks
         </h1>
-        <p className="text-base text-center text-gray-600 ">
-          Edit{' '}
-          <span className="bg-[#e5ebee]  px-1 py-0.5 rounded">src/client/splash/splash.tsx</span> to
-          get started.
+        <p className="text-gray-400">
+          Trade, Compete, Win
         </p>
       </div>
-      <div className="flex items-center justify-center mt-5">
+
+      {/* Market Preview */}
+      {!loading && stonks.length > 0 && (
+        <div className="w-full max-w-sm space-y-2">
+          <div className="text-gray-400 text-sm text-center mb-3">Live Market Preview</div>
+          {stonks.map((stonk) => (
+            <div
+              key={stonk.ticker}
+              className="bg-[#1A1A1B] rounded-lg p-3 flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{stonk.icon}</span>
+                <span className="font-bold text-white">{stonk.ticker}</span>
+              </div>
+              <div className="text-right">
+                <div className="text-white font-medium">
+                  ${(stonk.currentPrice / 100).toFixed(2)}
+                </div>
+                <div
+                  className={`text-xs ${stonk.priceChangePercent >= 0 ? 'text-[#00D084]' : 'text-[#FF4444]'
+                    }`}
+                >
+                  {stonk.priceChangePercent >= 0 ? '+' : ''}
+                  {stonk.priceChangePercent.toFixed(2)}%
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Start Button */}
+      <div className="flex items-center justify-center mt-4">
         <button
-          className="flex items-center justify-center bg-[#d93900] text-white w-auto h-10 rounded-full cursor-pointer transition-colors px-4"
+          className="flex items-center justify-center bg-[#FF4500] text-white px-8 py-3 rounded-full cursor-pointer transition-all hover:bg-[#ff5722] active:scale-95 font-medium"
           onClick={(e) => requestExpandedMode(e.nativeEvent, 'game')}
         >
-          Tap to Start
+          Start Trading
         </button>
       </div>
-      <footer className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3 text-[0.8em] text-gray-600">
-        <button
-          className="cursor-pointer"
-          onClick={() => navigateTo('https://developers.reddit.com/docs')}
-        >
-          Docs
-        </button>
-        <span className="text-gray-300">|</span>
-        <button
-          className="cursor-pointer"
-          onClick={() => navigateTo('https://www.reddit.com/r/Devvit')}
-        >
-          r/Devvit
-        </button>
-        <span className="text-gray-300">|</span>
-        <button
-          className="cursor-pointer"
-          onClick={() => navigateTo('https://discord.com/invite/R7yu2wh9Qz')}
-        >
-          Discord
-        </button>
-      </footer>
+
+      {/* User Info */}
+      {context.username && (
+        <div className="text-gray-400 text-sm">
+          Welcome, u/{context.username}
+        </div>
+      )}
     </div>
   );
 };

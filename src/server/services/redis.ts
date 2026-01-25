@@ -4,7 +4,7 @@
  */
 
 import { redis } from '@devvit/web/server';
-import { REDIS_KEYS, DEFAULT_VIRTUAL_LIQUIDITY, DEFAULT_BASE_PRICE } from '../../shared/config';
+import { REDIS_KEYS } from '../../shared/config';
 import type {
     StonkState,
     UserData,
@@ -59,8 +59,8 @@ export async function createStonk(
         active: 'true',
     });
 
-    // Add to stonks list
-    await redis.sAdd(REDIS_KEYS.STONKS_LIST, [id]);
+    // Add to stonks list (using sorted set with score 0 since Devvit only supports sorted sets)
+    await redis.zAdd(REDIS_KEYS.STONKS_LIST, { member: id, score: 0 });
 
     // Initialize batch counters
     await redis.hSet(REDIS_KEYS.stonkBatch(id), {
@@ -80,15 +80,15 @@ export async function getStonk(stonkId: string): Promise<StonkState | null> {
 
     return {
         id: data.id,
-        name: data.name,
-        ticker: data.ticker,
-        icon: data.icon,
-        basePrice: parseInt(data.basePrice),
-        currentPrice: parseInt(data.currentPrice),
-        virtualLiquidity: parseInt(data.virtualLiquidity),
-        totalVolume: parseInt(data.totalVolume),
-        createdBy: data.createdBy,
-        createdAt: parseInt(data.createdAt),
+        name: data.name || '',
+        ticker: data.ticker || '',
+        icon: data.icon || '',
+        basePrice: parseInt(data.basePrice || '0'),
+        currentPrice: parseInt(data.currentPrice || '0'),
+        virtualLiquidity: parseInt(data.virtualLiquidity || '0'),
+        totalVolume: parseInt(data.totalVolume || '0'),
+        createdBy: data.createdBy || '',
+        createdAt: parseInt(data.createdAt || '0'),
         active: data.active === 'true',
     };
 }
@@ -97,7 +97,9 @@ export async function getStonk(stonkId: string): Promise<StonkState | null> {
  * Gets all stonks in the subreddit.
  */
 export async function getAllStonks(): Promise<StonkState[]> {
-    const stonkIds = await redis.sMembers(REDIS_KEYS.STONKS_LIST);
+    // Use zRange since Devvit only supports sorted sets
+    const entries = await redis.zRange(REDIS_KEYS.STONKS_LIST, 0, -1, { by: 'rank' });
+    const stonkIds = entries.map(e => e.member);
     if (!stonkIds || stonkIds.length === 0) return [];
 
     const stonks: StonkState[] = [];
@@ -148,6 +150,7 @@ export async function getPriceHistory(
     limit: number = 100
 ): Promise<PriceHistoryEntry[]> {
     const entries = await redis.zRange(REDIS_KEYS.stonkHistory(stonkId), 0, limit - 1, {
+        by: 'rank',
         reverse: true,
     });
 
@@ -205,7 +208,7 @@ export async function getOrCreateUser(userId: string, startingBalance: number): 
         return {
             walletBalance: parseInt(existing.walletBalance),
             portfolio: JSON.parse(existing.portfolio || '{}'),
-            joinedAt: parseInt(existing.joinedAt),
+            joinedAt: parseInt(existing.joinedAt || '0'),
             lastTradeAt: parseInt(existing.lastTradeAt || '0'),
         };
     }
@@ -239,7 +242,7 @@ export async function getUser(userId: string): Promise<UserData | null> {
     return {
         walletBalance: parseInt(data.walletBalance),
         portfolio: JSON.parse(data.portfolio || '{}'),
-        joinedAt: parseInt(data.joinedAt),
+        joinedAt: parseInt(data.joinedAt || '0'),
         lastTradeAt: parseInt(data.lastTradeAt || '0'),
     };
 }
@@ -277,6 +280,7 @@ export async function updateLeaderboardScore(userId: string, netWorth: number): 
  */
 export async function getTopLeaderboard(limit: number): Promise<{ userId: string; score: number }[]> {
     const entries = await redis.zRange(REDIS_KEYS.LEADERBOARD, 0, limit - 1, {
+        by: 'rank',
         reverse: true,
     });
 
