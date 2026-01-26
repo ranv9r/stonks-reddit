@@ -76,10 +76,7 @@ body {
   min-height: 100vh;
 }
 
-/* ============================================
-   GLASSMORPHISM COMPONENTS
-   ============================================ */
-
+/* Glassmorphism */
 .glass-card {
   background: rgba(24, 24, 27, 0.7);
   backdrop-filter: blur(12px);
@@ -96,11 +93,7 @@ body {
   box-shadow: var(--shadow-lg);
 }
 
-/* ============================================
-   ANIMATIONS
-   ============================================ */
-
-/* View Transitions */
+/* Animations */
 @keyframes slideInRight {
   from {
     opacity: 0;
@@ -149,7 +142,6 @@ body {
   animation: fadeInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Price Change Animations */
 @keyframes pulseGreen {
 
   0%,
@@ -182,7 +174,6 @@ body {
   animation: pulseRed 0.6s ease;
 }
 
-/* Glow Effect */
 @keyframes glow {
 
   0%,
@@ -199,10 +190,7 @@ body {
   animation: glow 2s ease-in-out infinite;
 }
 
-/* ============================================
-   SCROLLBAR
-   ============================================ */
-
+/* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -221,11 +209,7 @@ body {
   background: var(--color-border);
 }
 
-/* ============================================
-   CUSTOM COMPONENTS
-   ============================================ */
-
-/* Card Component */
+/* Components */
 .card {
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border-subtle);
@@ -247,7 +231,6 @@ body {
   }
 }
 
-/* Button Component */
 .btn {
   font-weight: 600;
   font-family: 'Inter', sans-serif;
@@ -284,7 +267,6 @@ body {
   box-shadow: var(--shadow-glow);
 }
 
-/* Input Component */
 .input {
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
@@ -305,7 +287,6 @@ body {
   color: var(--color-text-muted);
 }
 
-/* Touch targets for mobile */
 @media (max-width: 767px) {
   .btn {
     min-height: 44px;
@@ -317,10 +298,6 @@ body {
     min-width: 44px;
   }
 }
-
-/* ============================================
-   TYPOGRAPHY
-   ============================================ */
 
 .text-gradient {
   background: linear-gradient(135deg, var(--color-accent-primary) 0%, #ff7849 100%);
@@ -347,10 +324,6 @@ body {
   }
 }
 
-/* ============================================
-   SAFE AREA (for notched devices)
-   ============================================ */
-
 .safe-area-top {
   padding-top: env(safe-area-inset-top);
 }
@@ -358,10 +331,6 @@ body {
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
-
-/* ============================================
-   RESPONSIVE UTILITIES
-   ============================================ */
 
 .container-responsive {
   width: 100%;
@@ -382,10 +351,6 @@ body {
   }
 }
 
-/* ============================================
-   ACCESSIBILITY
-   ============================================ */
-
 *:focus-visible {
   outline: 2px solid var(--color-accent-primary);
   outline-offset: 2px;
@@ -399,324 +364,5 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-}
-
-/* ============================================
-   SPLASH SCREEN - Mobile-First Design
-   Optimized for Reddit post (primarily mobile)
-   ============================================ */
-
-/* Container - Center & Constrain Pattern */
-.splash-container {
-  min-height: 100vh;
-  width: 100%;
-  background: var(--color-bg-primary);
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 1rem;
-  overflow-y: auto;
-}
-
-/* Inner wrapper - constrained width for desktop centering */
-.splash-inner {
-  width: 100%;
-  max-width: 430px;
-  /* Standard mobile width, centers on desktop */
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-/* Logo Styles - Large & Prominent */
-.splash-logo {
-  margin-bottom: 0.5rem;
-}
-
-.logo-text {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.logo-meme {
-  font-size: 2.25rem;
-  font-weight: 800;
-  background: linear-gradient(135deg, var(--color-accent-primary) 0%, #ff7849 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.logo-icon {
-  color: var(--color-accent-primary);
-}
-
-.logo-stonks {
-  font-size: 2.25rem;
-  font-weight: 800;
-  background: linear-gradient(135deg, var(--color-accent-primary) 0%, #ff7849 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  display: block;
-  margin-top: -0.25rem;
-}
-
-/* Net Worth Section */
-.splash-networth {
-  margin-bottom: 0.25rem;
-}
-
-.networth-label {
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
-  font-weight: 500;
-  margin-bottom: 0.125rem;
-}
-
-.networth-value {
-  font-size: 2rem;
-  font-weight: 800;
-  color: var(--color-text-primary);
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-}
-
-.networth-subtitle {
-  color: var(--color-text-muted);
-  font-size: 0.625rem;
-  margin-top: 0.125rem;
-}
-
-/* Mascot Section - Stonks Guy - PROMINENTLY LARGE */
-.splash-mascot {
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-start;
-  position: relative;
-  min-height: 120px;
-  margin-bottom: 0.5rem;
-}
-
-.stonks-guy-image {
-  width: 160px;
-  height: auto;
-  object-fit: contain;
-  position: relative;
-  z-index: 2;
-}
-
-.trend-arrow {
-  position: absolute;
-  width: 90px;
-  height: 55px;
-  left: 110px;
-  bottom: 50px;
-  z-index: 1;
-}
-
-/* CTA Button */
-.splash-cta {
-  width: 65%;
-  max-width: 220px;
-  padding: 0.875rem 1.25rem;
-  background: var(--color-accent-primary);
-  color: white;
-  border: none;
-  border-radius: 1rem;
-  font-weight: 700;
-  font-size: 0.9375rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 15px rgba(255, 69, 0, 0.3);
-}
-
-.splash-cta:hover {
-  background: var(--color-accent-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(255, 69, 0, 0.4);
-}
-
-.splash-cta:active {
-  transform: scale(0.98);
-}
-
-.splash-welcome {
-  color: var(--color-text-muted);
-  font-size: 0.6875rem;
-  text-align: left;
-  margin-top: 0.25rem;
-}
-
-.splash-welcome .username {
-  color: var(--color-accent-primary);
-}
-
-/* Market Section */
-.market-header {
-  color: var(--color-text-muted);
-  font-size: 0.6875rem;
-  font-weight: 500;
-  margin-bottom: 0.375rem;
-  margin-top: 0.5rem;
-}
-
-.market-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-}
-
-/* Individual Market Card - Glassmorphism */
-.market-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 0.875rem;
-  border-radius: 0.875rem;
-  background: rgba(31, 31, 35, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(8px);
-  transition: transform 0.2s ease, background 0.2s ease;
-}
-
-.market-card:hover {
-  background: rgba(39, 39, 42, 0.8);
-}
-
-.card-left {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-}
-
-.stonk-icon {
-  font-size: 1.375rem;
-  line-height: 1;
-}
-
-.stonk-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.stonk-ticker {
-  font-weight: 600;
-  color: var(--color-text-primary);
-  font-size: 0.8125rem;
-}
-
-.stonk-price {
-  font-weight: 700;
-  color: var(--color-text-primary);
-  font-size: 1rem;
-  margin-top: 0.0625rem;
-}
-
-/* Price Badge */
-.price-badge {
-  padding: 0.3125rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: 0.6875rem;
-  font-weight: 600;
-}
-
-.price-badge.up {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-}
-
-.price-badge.down {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-}
-
-/* ============================================
-   DESKTOP - Two Column Layout (600px+)
-   ============================================ */
-@media (min-width: 600px) {
-  .splash-container {
-    align-items: center;
-    padding: 1.5rem;
-  }
-
-  .splash-inner {
-    max-width: 700px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
-  }
-
-  .splash-left {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .splash-right {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .logo-meme,
-  .logo-stonks {
-    font-size: 2.75rem;
-  }
-
-  .networth-value {
-    font-size: 2.75rem;
-  }
-
-  .splash-mascot {
-    min-height: 160px;
-    flex: 1;
-  }
-
-  .stonks-guy-image {
-    width: 200px;
-  }
-
-  .trend-arrow {
-    width: 120px;
-    height: 70px;
-    left: 140px;
-    bottom: 60px;
-  }
-
-  .market-card {
-    padding: 0.875rem 1rem;
-  }
-}
-
-/* Very small screens (under 340px) */
-@media (max-width: 339px) {
-  .splash-container {
-    padding: 0.75rem;
-  }
-
-  .logo-meme,
-  .logo-stonks {
-    font-size: 1.875rem;
-  }
-
-  .networth-value {
-    font-size: 1.75rem;
-  }
-
-  .stonks-guy-image {
-    width: 130px;
-  }
-
-  .trend-arrow {
-    width: 75px;
-    height: 45px;
-    left: 90px;
-    bottom: 40px;
-  }
-
-  .splash-cta {
-    padding: 0.75rem 1rem;
-    font-size: 0.875rem;
   }
 }

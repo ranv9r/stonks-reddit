@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "pump-o-dump2",
+  "name": "pump-o-dump",
   "post": {
     "dir": "dist/client",
     "entrypoints": {
@@ -85,6 +85,6 @@
     "onAppInstall": "/internal/triggers/on-app-install"
   },
   "dev": {
-    "subreddit": "pump_o_dump2_dev"
+    "subreddit": "pump_o_dump_dev2"
   }
 }

@@ -1,4 +1,5 @@
 import '../index.css';
+import './splash.css';
 
 import { connectRealtime } from '@devvit/web/client';
 import { context, requestExpandedMode } from '@devvit/web/client';
@@ -6,6 +7,7 @@ import { StrictMode, useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { LogoChartIcon } from '../game/components/Icons';
 import stonksGuy from '../assets/stonks-guy.png';
+import { MARKET_PREVIEW_COUNT } from './splashConfig';
 
 interface StonkPreview {
   ticker: string;
@@ -34,7 +36,7 @@ interface PortfolioData {
 
 /**
  * Splash screen component - displays market preview and start trading button.
- * Layout matches the UI mockup with proper responsive design.
+ * Two-column layout on all devices with large stonks guy and overlapping CTA.
  */
 export const Splash = () => {
   const [stonks, setStonks] = useState<StonkPreview[]>([]);
@@ -104,20 +106,19 @@ export const Splash = () => {
 
   return (
     <div className="splash-container">
-      {/* Inner wrapper for center & constrain pattern (max-width: 430px on mobile, 700px on desktop) */}
       <div className="splash-inner">
-        {/* LEFT/TOP Section - Branding & CTA */}
+        {/* LEFT Column - Branding, Mascot & CTA */}
         <div className="splash-left">
-          {/* Logo - Larger and more prominent */}
+          {/* Logo */}
           <div className="splash-logo">
-            <div className="logo-text">
+            <div className="logo-row">
               <span className="logo-meme">Meme</span>
-              <LogoChartIcon size={28} className="logo-icon" />
+              <LogoChartIcon size={36} className="logo-icon" />
             </div>
             <span className="logo-stonks">Stonks</span>
           </div>
 
-          {/* Net Worth Section */}
+          {/* Net Worth */}
           <div className="splash-networth">
             <div className="networth-label">Net Worth</div>
             <div className="networth-value">
@@ -126,33 +127,26 @@ export const Splash = () => {
             <div className="networth-subtitle">Wallet + Portfolio</div>
           </div>
 
-          {/* Stonks Guy with Arrow - Large & Positioned at Bottom */}
-          <div className="splash-mascot">
+          {/* Mascot Section - Stonks Guy with Arrow BEHIND and CTA on TOP */}
+          <div className="splash-mascot-area">
+            {/* Arrow behind stonks guy */}
+            <div className="mascot-arrow">
+              <LogoChartIcon size={140} className="trend-arrow-icon" />
+            </div>
+            {/* Stonks Guy Image - LARGE */}
             <img
               src={stonksGuy}
               alt="Stonks"
               className="stonks-guy-image"
             />
-            {/* Trend Arrow */}
-            <svg className="trend-arrow" viewBox="0 0 100 60" fill="none">
-              <path
-                d="M5 55 Q 25 50 40 35 T 70 15 L 95 5"
-                stroke="#FF4500"
-                strokeWidth="6"
-                strokeLinecap="round"
-                fill="none"
-              />
-              <polygon points="90,1 99,3 93,11" fill="#FF4500" />
-            </svg>
+            {/* CTA Button overlapping on the mascot */}
+            <button
+              className="splash-cta"
+              onClick={(e) => requestExpandedMode(e.nativeEvent, 'game')}
+            >
+              Start Trading &gt;
+            </button>
           </div>
-
-          {/* CTA Button */}
-          <button
-            className="splash-cta"
-            onClick={(e) => requestExpandedMode(e.nativeEvent, 'game')}
-          >
-            Start Trading &gt;
-          </button>
 
           {context.username && (
             <div className="splash-welcome">
@@ -161,11 +155,11 @@ export const Splash = () => {
           )}
         </div>
 
-        {/* RIGHT/BOTTOM Section - Live Market Cards */}
+        {/* RIGHT Column - Live Market Cards */}
         <div className="splash-right">
           <div className="market-header">Live Market</div>
           <div className="market-cards">
-            {!loading && stonks.slice(0, 5).map((stonk) => (
+            {!loading && stonks.slice(0, MARKET_PREVIEW_COUNT).map((stonk) => (
               <div key={stonk.ticker} className="market-card">
                 <div className="card-left">
                   <span className="stonk-icon">{stonk.icon}</span>
