@@ -144,7 +144,7 @@ export const Splash = () => {
               className="splash-cta"
               onClick={(e) => requestExpandedMode(e.nativeEvent, 'game')}
             >
-              Start Trading &gt;
+              Start Trading
             </button>
           </div>
 
