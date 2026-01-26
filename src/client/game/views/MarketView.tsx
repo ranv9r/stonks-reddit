@@ -1,8 +1,10 @@
 /**
  * Market View - Displays all available stonks with prices and changes.
+ * Uses Reddit Realtime for live price updates.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { connectRealtime } from '@devvit/web/client';
 
 interface Stonk {
     id: string;
@@ -20,6 +22,19 @@ interface MarketData {
     lastUpdate: number;
 }
 
+interface RealtimeStonk {
+    id: string;
+    ticker: string;
+    icon: string;
+    currentPrice: number;
+    priceChangePercent: number;
+}
+
+interface MarketTickPayload {
+    stonks: RealtimeStonk[];
+    timestamp: number;
+}
+
 interface MarketViewProps {
     onStonkClick: (stonkId: string) => void;
 }
@@ -28,14 +43,64 @@ export const MarketView = ({ onStonkClick }: MarketViewProps) => {
     const [marketData, setMarketData] = useState<MarketData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const connectionRef = useRef<{ disconnect: () => Promise<void> } | null>(null);
 
     useEffect(() => {
+        // Initial fetch for full data (including wallet balance)
         fetchMarketData();
-        // Poll every 5 seconds
-        const interval = setInterval(fetchMarketData, 5000);
-        return () => clearInterval(interval);
+
+        // Subscribe to realtime updates
+        const setupRealtime = async () => {
+            try {
+                connectionRef.current = await connectRealtime({
+                    channel: 'global_ticker',
+                    onMessage: (data: unknown) => {
+                        const payload = data as MarketTickPayload;
+                        // Update stonk prices from realtime payload
+                        setMarketData(prev => {
+                            if (!prev) return prev;
+                            const updatedStonks = prev.stonks.map(stonk => {
+                                const update = payload.stonks.find(s => s.id === stonk.id);
+                                if (update) {
+                                    const priceChange = update.currentPrice - stonk.currentPrice;
+                                    const priceChangePercent = stonk.currentPrice > 0
+                                        ? (priceChange / stonk.currentPrice) * 100
+                                        : 0;
+                                    return {
+                                        ...stonk,
+                                        currentPrice: update.currentPrice,
+                                        priceChange,
+                                        priceChangePercent,
+                                    };
+                                }
+                                return stonk;
+                            });
+                            return {
+                                ...prev,
+                                stonks: updatedStonks,
+                                lastUpdate: payload.timestamp,
+                            };
+                        });
+                    },
+                    onConnect: () => console.log('[MarketView] Connected to global-ticker'),
+                    onDisconnect: () => console.log('[MarketView] Disconnected from global-ticker'),
+                });
+            } catch (err) {
+                console.error('[MarketView] Realtime connection failed:', err);
+            }
+        };
+
+        setupRealtime();
+
+        return () => {
+            // Cleanup realtime connection
+            connectionRef.current?.disconnect();
+        };
     }, []);
 
+    /**
+     * Fetches full market data from API (initial load).
+     */
     const fetchMarketData = async () => {
         try {
             const res = await fetch('/api/market');

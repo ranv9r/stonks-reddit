@@ -1,8 +1,8 @@
 import '../index.css';
 
-import { navigateTo } from '@devvit/web/client';
+import { navigateTo, connectRealtime } from '@devvit/web/client';
 import { context, requestExpandedMode } from '@devvit/web/client';
-import { StrictMode, useState, useEffect } from 'react';
+import { StrictMode, useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 
 interface StonkPreview {
@@ -12,14 +12,61 @@ interface StonkPreview {
   priceChangePercent: number;
 }
 
+interface RealtimeStonk {
+  id: string;
+  ticker: string;
+  icon: string;
+  currentPrice: number;
+  priceChangePercent: number;
+}
+
+interface MarketTickPayload {
+  stonks: RealtimeStonk[];
+  timestamp: number;
+}
+
 export const Splash = () => {
   const [stonks, setStonks] = useState<StonkPreview[]>([]);
   const [loading, setLoading] = useState(true);
+  const connectionRef = useRef<{ disconnect: () => Promise<void> } | null>(null);
 
   useEffect(() => {
     fetchMarketPreview();
+
+    // Subscribe to realtime updates
+    const setupRealtime = async () => {
+      try {
+        connectionRef.current = await connectRealtime({
+          channel: 'global_ticker',
+          onMessage: (data: unknown) => {
+            const payload = data as MarketTickPayload;
+            // Update stonk prices from realtime payload (top 3)
+            const updatedStonks = payload.stonks.slice(0, 3).map(s => ({
+              ticker: s.ticker,
+              icon: s.icon,
+              currentPrice: s.currentPrice,
+              priceChangePercent: s.priceChangePercent,
+            }));
+            setStonks(updatedStonks);
+          },
+          onConnect: () => console.log('[Splash] Connected to global-ticker'),
+          onDisconnect: () => console.log('[Splash] Disconnected from global-ticker'),
+        });
+      } catch (err) {
+        console.error('[Splash] Realtime connection failed:', err);
+      }
+    };
+
+    setupRealtime();
+
+    return () => {
+      connectionRef.current?.disconnect();
+    };
   }, []);
 
+  /**
+   * Fetches initial market preview from API.
+   */
   const fetchMarketPreview = async () => {
     try {
       const res = await fetch('/api/market');

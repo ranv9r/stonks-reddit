@@ -45,10 +45,10 @@ export async function createStonk(
     createdBy: string
 ): Promise<StonkState> {
     const now = Date.now();
-    
+
     // Calculate initial price from reserves
     const initialPrice = Math.round(xVirt / yVirt);
-    
+
     const stonk: StonkState = {
         id,
         name,
@@ -145,14 +145,12 @@ export async function getAllStonks(): Promise<StonkState[]> {
     const stonkIds = entries.map(e => e.member);
     if (!stonkIds || stonkIds.length === 0) return [];
 
-    const stonks: StonkState[] = [];
-    for (const id of stonkIds) {
-        const stonk = await getStonk(id);
-        if (stonk && stonk.active) {
-            stonks.push(stonk);
-        }
-    }
-    return stonks;
+    // Fetch all stonks in parallel for performance
+    const stonkPromises = stonkIds.map(id => getStonk(id));
+    const stonksRaw = await Promise.all(stonkPromises);
+
+    // Filter out null/inactive stonks
+    return stonksRaw.filter((s): s is StonkState => s !== null && s.active);
 }
 
 /**
@@ -269,12 +267,12 @@ export async function checkSpendLimit(
     // and preventing keys from getting stuck forever if TTL fails.
     const bucket = Math.floor(Date.now() / (COOLDOWN_WINDOW_SECONDS * 1000));
     const key = `${REDIS_KEYS.userSpend(userId, stonkId)}:${bucket}`;
-    
+
     const currentSpent = await redis.get(key);
-    
+
     const spent = currentSpent ? parseInt(currentSpent) : 0;
     const remaining = USER_SPEND_LIMIT - spent;
-    
+
     if (requestedAmount <= remaining) {
         return {
             allowed: true,
@@ -282,7 +280,7 @@ export async function checkSpendLimit(
             spent,
         };
     }
-    
+
     // Partial allowance - cap to remaining
     if (remaining > 0) {
         return {
@@ -292,7 +290,7 @@ export async function checkSpendLimit(
             cappedAmount: remaining,
         };
     }
-    
+
     return {
         allowed: false,
         remaining: 0,
@@ -311,10 +309,10 @@ export async function recordSpending(
 ): Promise<void> {
     const bucket = Math.floor(Date.now() / (COOLDOWN_WINDOW_SECONDS * 1000));
     const key = `${REDIS_KEYS.userSpend(userId, stonkId)}:${bucket}`;
-    
+
     // Atomically increment the bucket
     await redis.incrBy(key, amount);
-    
+
     // Set expiry for cleanup (2x window is plenty safe)
     // We don't care if we set it repeatedly, as long as it eventually expires.
     await redis.expire(key, COOLDOWN_WINDOW_SECONDS * 2);
@@ -329,9 +327,9 @@ export async function getUserSpending(
 ): Promise<{ spent: number; remaining: number }> {
     const bucket = Math.floor(Date.now() / (COOLDOWN_WINDOW_SECONDS * 1000));
     const key = `${REDIS_KEYS.userSpend(userId, stonkId)}:${bucket}`;
-    
+
     const currentSpent = await redis.get(key);
-    
+
     const spent = currentSpent ? parseInt(currentSpent) : 0;
     return {
         spent,
