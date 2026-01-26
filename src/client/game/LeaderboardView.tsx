@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { TrophyIcon } from './components/Icons';
 
 interface LeaderboardEntry {
     rank: number;
@@ -62,72 +63,112 @@ export const LeaderboardView = () => {
 
     if (!leaderboard) return null;
 
-    const getRankColor = (rank: number) => {
-        if (rank === 1) return 'text-yellow-500';
-        if (rank === 2) return 'text-gray-400';
-        if (rank === 3) return 'text-orange-600';
-        return 'text-gray-600';
-    };
-
     return (
-        <div className="p-4">
+        <div className="p-4 sm:p-6 fade-in max-w-3xl mx-auto">
             {/* Header */}
-            <div className="mb-4">
-                <h2 className="text-xl font-bold text-white">Top Traders</h2>
-                <p className="text-sm text-gray-400">
+            <div className="mb-8 text-center">
+                <div className="flex items-center justify-center gap-3 mb-3">
+                    <TrophyIcon size={32} className="text-[#FF4500]" />
+                    <h2 className="text-3xl font-extrabold text-white">Top Traders</h2>
+                </div>
+                <p className="text-sm text-[#a1a1aa]">
                     {leaderboard.totalParticipants} total participants
                 </p>
             </div>
 
             {/* Leaderboard List */}
-            <div className="space-y-2">
-                {leaderboard.topTraders.map((entry) => (
-                    <div
-                        key={entry.userId}
-                        className={`bg-[#1A1A1B] rounded-lg p-4 ${entry.isCurrentUser ? 'border border-[#FF4500]' : ''
-                            }`}
-                    >
-                        <div className="flex items-center gap-3">
-                            <div
-                                className={`text-lg font-bold w-8 text-center ${getRankColor(entry.rank)}`}
-                            >
-                                #{entry.rank}
-                            </div>
-                            <div className="flex-1">
-                                <div className="font-medium text-white">
-                                    {entry.username}
+            <div className="space-y-3">
+                {leaderboard.topTraders.map((entry) => {
+                    const isTopThree = entry.rank <= 3;
+                    const rankColors = {
+                        1: { text: 'text-[#fbbf24]', bg: 'from-[#fbbf24]/30 to-[#fbbf24]/5', border: 'border-[#fbbf24]/50', glow: 'shadow-[0_0_20px_rgba(251,191,36,0.3)]' },
+                        2: { text: 'text-[#d1d5db]', bg: 'from-[#d1d5db]/30 to-[#d1d5db]/5', border: 'border-[#d1d5db]/50', glow: 'shadow-[0_0_20px_rgba(209,213,219,0.2)]' },
+                        3: { text: 'text-[#fb923c]', bg: 'from-[#fb923c]/30 to-[#fb923c]/5', border: 'border-[#fb923c]/50', glow: 'shadow-[0_0_20px_rgba(251,146,60,0.2)]' }
+                    };
+                    const colors = rankColors[entry.rank as 1 | 2 | 3];
+
+                    return (
+                        <div
+                            key={entry.userId}
+                            className={`
+                                relative overflow-hidden rounded-xl p-5 transition-all duration-200
+                                ${isTopThree
+                                    ? `bg-gradient-to-br ${colors?.bg} border-2 ${colors?.border} ${colors?.glow}`
+                                    : 'card border-2 border-transparent hover:border-[#27272a]'
+                                }
+                                ${entry.isCurrentUser && !isTopThree ? 'border-[#FF4500]! shadow-lg' : ''}
+                            `}
+                        >
+                            <div className="flex items-center gap-5">
+                                {/* Rank Badge */}
+                                <div className={`
+                                    flex items-center justify-center w-14 h-14 rounded-full font-black text-2xl shrink-0
+                                    ${isTopThree
+                                        ? `${colors?.text} bg-gradient-to-br ${colors?.bg} border-2 ${colors?.border}`
+                                        : 'text-[#71717a] bg-[#18181b] border-2 border-[#27272a]'
+                                    }
+                                `}>
+                                    {entry.rank === 1 && '🥇'}
+                                    {entry.rank === 2 && '🥈'}
+                                    {entry.rank === 3 && '🥉'}
+                                    {entry.rank > 3 && `#${entry.rank}`}
+                                </div>
+
+                                {/* User Info */}
+                                <div className="flex-1 min-w-0">
+                                    <div className={`font-bold text-lg truncate ${isTopThree ? 'text-white' : 'text-white'
+                                        }`}>
+                                        {entry.username}
+                                    </div>
                                     {entry.isCurrentUser && (
-                                        <span className="ml-2 text-xs text-[#FF4500]">(You)</span>
+                                        <span className="inline-block mt-1 text-xs text-[#FF4500] bg-[#FF4500]/10 px-2 py-0.5 rounded-full font-semibold">
+                                            You
+                                        </span>
                                     )}
                                 </div>
-                            </div>
-                            <div className="text-right">
-                                <div className="font-bold text-white">
-                                    ₿{(entry.netWorth / 100).toFixed(2)}
+
+                                {/* Net Worth */}
+                                <div className="text-right">
+                                    <div className={`font-bold text-xl ${isTopThree ? 'text-white' : 'text-white'
+                                        }`}>
+                                        ${(entry.netWorth / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
 
-            {/* User's Rank (if not in top 10) */}
-            {leaderboard.userRank && (
+            {/* User's Rank (only if NOT in top 10) */}
+            {leaderboard.userRank && leaderboard.userRank.rank > 10 && (
                 <>
-                    <div className="my-4 text-center text-gray-600">...</div>
-                    <div className="bg-[#1A1A1B] rounded-lg p-4 border border-[#FF4500]">
-                        <div className="flex items-center gap-3">
-                            <div className="text-lg font-bold text-[#FF4500] w-8 text-center">
+                    <div className="my-6 text-center">
+                        <div className="inline-block px-4 py-1 bg-[#18181b] rounded-full text-[#71717a] text-sm">
+                            ···
+                        </div>
+                    </div>
+                    <div className="card p-5 border-2 border-[#FF4500] shadow-lg rounded-xl">
+                        <div className="flex items-center gap-5">
+                            {/* Rank Badge */}
+                            <div className="flex items-center justify-center w-14 h-14 rounded-full font-black text-2xl shrink-0 text-[#FF4500] bg-[#FF4500]/10 border-2 border-[#FF4500]">
                                 #{leaderboard.userRank.rank}
                             </div>
-                            <div className="flex-1">
-                                <div className="font-medium text-white">
-                                    You
+
+                            {/* User Info */}
+                            <div className="flex-1 min-w-0">
+                                <div className="font-bold text-lg text-white">
+                                    Your Rank
                                 </div>
+                                <span className="inline-block mt-1 text-xs text-[#FF4500] bg-[#FF4500]/10 px-2 py-0.5 rounded-full font-semibold">
+                                    You
+                                </span>
                             </div>
+
+                            {/* Net Worth */}
                             <div className="text-right">
-                                <div className="font-bold text-white">
-                                    ₿{(leaderboard.userRank.netWorth / 100).toFixed(2)}
+                                <div className="font-bold text-xl text-white">
+                                    ${(leaderboard.userRank.netWorth / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </div>
                             </div>
                         </div>
@@ -136,10 +177,10 @@ export const LeaderboardView = () => {
             )}
 
             {leaderboard.topTraders.length === 0 && (
-                <div className="text-center text-gray-500 mt-8">
-                    <div className="text-3xl mb-2">🏆</div>
-                    <div>No traders yet</div>
-                    <div className="text-sm mt-1">Be the first to trade!</div>
+                <div className="text-center text-[#71717a] mt-12 p-8">
+                    <div className="text-4xl mb-3">🏆</div>
+                    <div className="text-lg font-medium">No traders yet</div>
+                    <div className="text-sm mt-2">Be the first to trade!</div>
                 </div>
             )}
         </div>

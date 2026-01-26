@@ -4,11 +4,12 @@
  * Optimized for mobile, tablet, and desktop responsiveness.
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { MarketView } from './views/MarketView';
 import { PortfolioView } from './views/PortfolioView';
 import { LeaderboardView } from './LeaderboardView';
 import { StockDetailView } from './views/StockDetailView';
+import { ChartIcon, BriefcaseIcon, TrophyIcon, LogoChartIcon } from './components/Icons';
 
 type View = 'market' | 'portfolio' | 'leaderboard' | 'detail';
 
@@ -27,64 +28,100 @@ export const App = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-black max-w-[100vw]">
+    <div className="flex flex-col h-screen bg-[#0f0f0f] max-w-[100vw]">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 lg:px-6 py-3 lg:py-4 border-b border-[#2d2d2d] safe-area-top">
-        <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-white">
-          📈 Meme Stonks
-        </h1>
-        <div className="hidden sm:block text-xs lg:text-sm text-gray-400">
-          Live Trading
+      <header className="flex items-center justify-between px-4 lg:px-6 py-4 lg:py-5 border-b border-[#27272a] safe-area-top bg-[#0f0f0f]">
+        <div className="flex items-center gap-3">
+          <LogoChartIcon size={28} className="text-[#FF4500]" />
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gradient">
+            Meme Stonks
+          </h1>
+        </div>
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#18181b] rounded-full border border-[#27272a]">
+          <div className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse"></div>
+          <span className="text-xs lg:text-sm text-[#a1a1aa] font-medium">Live</span>
         </div>
       </header>
 
-      {/* Main Content - Scrollable */}
+      {/* Main Content - Scrollable with View Transitions */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden">
         <div className="min-h-full">
-          {currentView === 'market' && <MarketView onStonkClick={handleStonkClick} />}
-          {currentView === 'portfolio' && <PortfolioView onStonkClick={handleStonkClick} />}
-          {currentView === 'leaderboard' && <LeaderboardView />}
+          {currentView === 'market' && (
+            <div className="view-enter">
+              <MarketView onStonkClick={handleStonkClick} />
+            </div>
+          )}
+          {currentView === 'portfolio' && (
+            <div className="view-enter">
+              <PortfolioView onStonkClick={handleStonkClick} />
+            </div>
+          )}
+          {currentView === 'leaderboard' && (
+            <div className="view-enter">
+              <LeaderboardView />
+            </div>
+          )}
           {currentView === 'detail' && selectedStonkId && (
-            <StockDetailView stonkId={selectedStonkId} onBack={handleBackToMarket} />
+            <div className="view-enter">
+              <StockDetailView stonkId={selectedStonkId} onBack={handleBackToMarket} />
+            </div>
           )}
         </div>
       </main>
 
       {/* Bottom Navigation - Fixed */}
       {currentView !== 'detail' && (
-        <nav className="flex items-center justify-around border-t border-[#2d2d2d] bg-black safe-area-bottom">
+        <nav className="flex items-center justify-around border-t border-[#27272a] bg-[#0f0f0f] safe-area-bottom shadow-lg">
           <button
             onClick={() => setCurrentView('market')}
-            className={`flex-1 py-3 sm:py-4 text-center transition-colors ${currentView === 'market'
-                ? 'text-[#FF4500] border-t-2 border-[#FF4500]'
-                : 'text-gray-500 hover:text-gray-400'
+            className={`flex-1 flex flex-col items-center gap-1.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'market'
+                ? 'text-[#FF4500]'
+                : 'text-[#71717a] hover:text-[#a1a1aa]'
               }`}
             aria-label="Market"
           >
-            <div className="text-xl sm:text-2xl">📊</div>
-            <div className="text-xs sm:text-sm mt-1">Market</div>
+            <ChartIcon size={22} />
+            <div className={`text-xs sm:text-sm font-medium transition-all ${currentView === 'market' ? 'scale-105' : 'scale-100'
+              }`}>
+              Market
+            </div>
+            {currentView === 'market' && (
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-[#FF4500] rounded-t-full"></div>
+            )}
           </button>
           <button
             onClick={() => setCurrentView('portfolio')}
-            className={`flex-1 py-3 sm:py-4 text-center transition-colors ${currentView === 'portfolio'
-                ? 'text-[#FF4500] border-t-2 border-[#FF4500]'
-                : 'text-gray-500 hover:text-gray-400'
+            className={`flex-1 flex flex-col items-center gap-1.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'portfolio'
+                ? 'text-[#FF4500]'
+                : 'text-[#71717a] hover:text-[#a1a1aa]'
               }`}
             aria-label="Portfolio"
           >
-            <div className="text-xl sm:text-2xl">💼</div>
-            <div className="text-xs sm:text-sm mt-1">Portfolio</div>
+            <BriefcaseIcon size={22} />
+            <div className={`text-xs sm:text-sm font-medium transition-all ${currentView === 'portfolio' ? 'scale-105' : 'scale-100'
+              }`}>
+              Portfolio
+            </div>
+            {currentView === 'portfolio' && (
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-[#FF4500] rounded-t-full"></div>
+            )}
           </button>
           <button
             onClick={() => setCurrentView('leaderboard')}
-            className={`flex-1 py-3 sm:py-4 text-center transition-colors ${currentView === 'leaderboard'
-                ? 'text-[#FF4500] border-t-2 border-[#FF4500]'
-                : 'text-gray-500 hover:text-gray-400'
+            className={`flex-1 flex flex-col items-center gap-1.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'leaderboard'
+                ? 'text-[#FF4500]'
+                : 'text-[#71717a] hover:text-[#a1a1aa]'
               }`}
             aria-label="Leaderboard"
           >
-            <div className="text-xl sm:text-2xl">🏆</div>
-            <div className="text-xs sm:text-sm mt-1">Leaderboard</div>
+            <TrophyIcon size={22} />
+            <div className={`text-xs sm:text-sm font-medium transition-all ${currentView === 'leaderboard' ? 'scale-105' : 'scale-100'
+              }`}>
+              Leaderboard
+            </div>
+            {currentView === 'leaderboard' && (
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-[#FF4500] rounded-t-full"></div>
+            )}
           </button>
         </nav>
       )}

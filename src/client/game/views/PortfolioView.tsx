@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { TrendingUpIcon, TrendingDownIcon, CoinIcon } from '../components/Icons';
 
 interface Holding {
     stonkId: string;
@@ -74,54 +75,63 @@ export const PortfolioView = ({ onStonkClick }: PortfolioViewProps) => {
     const totalNetWorth = portfolio.walletBalance + portfolio.totalValue;
 
     return (
-        <div className="p-4">
+        <div className="p-4 sm:p-6 fade-in">
             {/* Summary Card */}
-            <div className="bg-[#1A1A1B] rounded-lg p-4 mb-4">
-                <div className="text-gray-400 text-sm">Total Value</div>
-                <div className="text-2xl font-bold text-white mt-1">
-                    ₿{(totalNetWorth / 100).toFixed(2)}
-                </div>
-                <div
-                    className={`text-sm mt-1 ${portfolio.totalProfitLoss >= 0 ? 'text-[#00D084]' : 'text-[#FF4444]'
-                        }`}
-                >
-                    {portfolio.totalProfitLoss >= 0 ? '+' : ''}
-                    ₿{(portfolio.totalProfitLoss / 100).toFixed(2)} (
-                    {portfolio.totalProfitLossPercent.toFixed(2)}%)
+            <div className="glass-card-elevated p-6 mb-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#FF4500] to-transparent opacity-10 blur-2xl rounded-full"></div>
+                <div className="relative z-10">
+                    <div className="text-[#a1a1aa] text-sm font-medium mb-3 flex items-center gap-2">
+                        <CoinIcon size={16} />
+                        Total Portfolio Value
+                    </div>
+                    <div className="text-4xl sm:text-5xl font-bold text-white mb-3">
+                        ${(totalNetWorth / 100).toFixed(2)}
+                    </div>
+                    <div className={`flex items-center gap-2 text-base font-semibold ${portfolio.totalProfitLoss >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'
+                        }`}>
+                        {portfolio.totalProfitLoss >= 0 ? (
+                            <TrendingUpIcon size={18} />
+                        ) : (
+                            <TrendingDownIcon size={18} />
+                        )}
+                        {portfolio.totalProfitLoss >= 0 ? '+' : ''}
+                        ${(portfolio.totalProfitLoss / 100).toFixed(2)} ({portfolio.totalProfitLossPercent.toFixed(2)}%)
+                    </div>
                 </div>
             </div>
 
             {/* Holdings Header */}
-            <div className="text-sm font-medium text-gray-400 mb-2">Holdings</div>
+            <div className="px-2 pb-3 text-xs text-[#71717a] font-semibold uppercase tracking-wider">
+                Your Holdings
+            </div>
 
             {/* Holdings List */}
-            <div className="space-y-2">
+            <div className="space-y-3">
                 {portfolio.holdings.map((holding) => (
                     <button
                         key={holding.stonkId}
                         onClick={() => onStonkClick(holding.stonkId)}
-                        className="w-full bg-[#1A1A1B] rounded-lg p-4 hover:bg-[#252525] transition-colors"
+                        className="w-full card p-4 hover:border-[#FF4500] hover:shadow-lg transition-all duration-200 group"
                     >
-                        <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                                <span className="text-xl">{holding.icon}</span>
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                                <span className="text-3xl">{holding.icon}</span>
                                 <div className="text-left">
-                                    <div className="font-bold text-white">{holding.ticker}</div>
-                                    <div className="text-xs text-gray-400">
-                                        {holding.quantity.toFixed(2)} shares
+                                    <div className="font-bold text-white text-lg group-hover:text-[#FF4500] transition-colors">{holding.ticker}</div>
+                                    <div className="text-sm text-[#71717a]">
+                                        {holding.quantity.toFixed(2)} shares @ ${(holding.avgBuyPrice / 100).toFixed(2)}
                                     </div>
                                 </div>
                             </div>
                             <div className="text-right">
-                                <div className="font-medium text-white">
-                                    ₿{(holding.currentValue / 100).toFixed(2)}
+                                <div className="font-semibold text-white text-lg">
+                                    ${(holding.currentValue / 100).toFixed(2)}
                                 </div>
-                                <div
-                                    className={`text-xs ${holding.profitLoss >= 0 ? 'text-[#00D084]' : 'text-[#FF4444]'
-                                        }`}
-                                >
+                                <div className={`flex items-center gap-1 justify-end text-sm font-semibold mt-1 ${holding.profitLoss >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'
+                                    }`}>
+                                    {holding.profitLoss >= 0 ? <TrendingUpIcon size={14} /> : <TrendingDownIcon size={14} />}
                                     {holding.profitLoss >= 0 ? '+' : ''}
-                                    ₿{(holding.profitLoss / 100).toFixed(2)}
+                                    ${(holding.profitLoss / 100).toFixed(2)}
                                 </div>
                             </div>
                         </div>
@@ -130,10 +140,10 @@ export const PortfolioView = ({ onStonkClick }: PortfolioViewProps) => {
             </div>
 
             {portfolio.holdings.length === 0 && (
-                <div className="text-center text-gray-500 mt-8">
-                    <div className="text-3xl mb-2">💼</div>
-                    <div>No holdings yet</div>
-                    <div className="text-sm mt-1">Start trading to build your portfolio!</div>
+                <div className="text-center text-[#71717a] mt-12 p-8">
+                    <div className="text-4xl mb-3">💼</div>
+                    <div className="text-lg font-medium">No holdings yet</div>
+                    <div className="text-sm mt-2">Start trading to build your portfolio!</div>
                 </div>
             )}
         </div>
