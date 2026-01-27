@@ -77,25 +77,31 @@ export const PortfolioView = ({ onStonkClick }: PortfolioViewProps) => {
     return (
         <div className="px-4 py-4 sm:px-6 sm:py-6 fade-in">
             {/* Summary Card */}
-            <div className="glass-card-elevated p-5 mb-5 relative overflow-hidden">
+            {/* Summary Card */}
+            <div className="glass-card-elevated p-5 mb-5 relative overflow-hidden flex items-center justify-between">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#FF4500] to-transparent opacity-10 blur-2xl rounded-full"></div>
-                <div className="relative z-10">
-                    <div className="text-[#a1a1aa] text-[13px] font-medium mb-2 flex items-center gap-2">
+                <div className="relative z-10 w-full text-center">
+                    <div className="text-[#a1a1aa] text-[13px] font-medium mb-2 flex items-center justify-center gap-2">
                         <CoinIcon size={16} />
                         Total Portfolio Value
                     </div>
                     <div className="text-[30px] sm:text-[35px] font-bold text-white mb-2">
                         ${(totalNetWorth / 100).toFixed(2)}
                     </div>
-                    <div className={`flex items-center gap-2 text-[13px] font-semibold ${portfolio.totalProfitLoss >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'
-                        }`}>
+                </div>
+                <div className={`absolute right-5 top-1/2 -translate-y-1/2 flex flex-col items-end gap-1 text-[16px] font-semibold ${portfolio.totalProfitLoss >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'
+                    }`}>
+                    <div className="flex items-center gap-1">
                         {portfolio.totalProfitLoss >= 0 ? (
-                            <TrendingUpIcon size={16} />
+                            <TrendingUpIcon size={20} />
                         ) : (
-                            <TrendingDownIcon size={16} />
+                            <TrendingDownIcon size={20} />
                         )}
                         {portfolio.totalProfitLoss >= 0 ? '+' : ''}
-                        ${(portfolio.totalProfitLoss / 100).toFixed(2)} ({portfolio.totalProfitLossPercent.toFixed(2)}%)
+                        ${(portfolio.totalProfitLoss / 100).toFixed(2)}
+                    </div>
+                    <div className="text-[14px] opacity-80">
+                        ({portfolio.totalProfitLossPercent.toFixed(2)}%)
                     </div>
                 </div>
             </div>
@@ -106,7 +112,7 @@ export const PortfolioView = ({ onStonkClick }: PortfolioViewProps) => {
             </div>
 
             {/* Holdings List */}
-            <div className="space-y-3">
+            <div className="flex flex-col gap-3">
                 {portfolio.holdings.map((holding) => (
                     <button
                         key={holding.stonkId}

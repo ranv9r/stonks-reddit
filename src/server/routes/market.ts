@@ -23,6 +23,16 @@ const router = Router();
 /**
  * GET /api/market - Get all stonks and user wallet balance.
  */
+router.get('/api/config', async (_req, res) => {
+    try {
+        const { subredditName } = context;
+        res.json({ subredditName: subredditName || 'Stonks' });
+    } catch (error) {
+        console.error('[Config API] Error:', error);
+        res.status(500).json({ error: 'Failed to fetch config' });
+    }
+});
+
 router.get('/api/market', async (_req, res) => {
     try {
         const { userId } = context;
@@ -89,7 +99,7 @@ router.get('/api/stonk/:id', async (req, res) => {
         // Get user's holding and spend limit if logged in
         let userHolding = null;
         let spendLimit = { allowed: true, remaining: 1000000, spent: 0 };
-        
+
         if (userId) {
             const user = await redisService.getUser(userId);
             userHolding = user?.portfolio[id] || null;
@@ -191,8 +201,8 @@ router.get('/api/portfolio', async (_req, res) => {
             holdings.map(async (h) => {
                 const stonk = await redisService.getStonk(h.stonkId);
                 const holding = user.portfolio[h.stonkId];
-                const costBasis = holding?.qty && holding?.avgPrice 
-                    ? holding.qty * holding.avgPrice 
+                const costBasis = holding?.qty && holding?.avgPrice
+                    ? holding.qty * holding.avgPrice
                     : 0;
 
                 return {

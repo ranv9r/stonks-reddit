@@ -16,6 +16,24 @@ type View = 'market' | 'portfolio' | 'leaderboard' | 'detail';
 export const App = () => {
   const [currentView, setCurrentView] = useState<View>('market');
   const [selectedStonkId, setSelectedStonkId] = useState<string | null>(null);
+  const [subredditName, setSubredditName] = useState<string>('Stonks');
+
+  useState(() => {
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch('/api/config');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.subredditName) {
+            setSubredditName(data.subredditName);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch config', err);
+      }
+    };
+    fetchConfig();
+  });
 
   const handleStonkClick = (stonkId: string) => {
     setSelectedStonkId(stonkId);
@@ -34,7 +52,7 @@ export const App = () => {
         <div className="flex items-center gap-2 justify-center">
           <LogoChartIcon size={28} className="text-[#FF4500]" />
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gradient">
-            Stonks
+            r/{subredditName} Stonks
           </h1>
         </div>
         <div className="absolute right-4 lg:right-6 hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#18181b] rounded-full border border-[#27272a]">

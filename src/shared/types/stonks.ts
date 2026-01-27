@@ -16,26 +16,26 @@ export interface StonkState {
     name: string;
     ticker: string;
     icon: string;
-    
+
     // AMM Reserve State
     xVirt: number;      // Virtual cash reserve (base liquidity)
     yVirt: number;      // Virtual stock reserve (base liquidity)
     xReal: number;      // Real cash added from trades
     yReal: number;      // Real stock added from trades
-    
+
     // Derived values (calculated, not stored)
     // xTotal = xVirt + xReal
     // yTotal = yVirt + yReal
     // k = xTotal * yTotal
     // spotPrice = xTotal / yTotal
-    
+
     // Price tracking
     basePrice: number;       // Initial price at creation (cents)
     currentPrice: number;    // Current spot price (cents)
-    
+
     // Volume tracking
     totalVolume: number;     // Lifetime trading volume (cents)
-    
+
     // Metadata
     createdBy: string;       // Mod user ID
     createdAt: number;       // Unix timestamp

@@ -77,7 +77,7 @@ export const LeaderboardView = () => {
             </div>
 
             {/* Leaderboard List */}
-            <div className="space-y-3">
+            <div className="flex flex-col gap-3">
                 {leaderboard.topTraders.map((entry) => {
                     const isTopThree = entry.rank <= 3;
                     const rankColors = {
@@ -91,7 +91,7 @@ export const LeaderboardView = () => {
                         <div
                             key={entry.userId}
                             className={`
-                                relative overflow-hidden rounded-xl p-4 transition-all duration-200
+                                relative overflow-hidden rounded-xl px-6 py-4 transition-all duration-200
                                 ${isTopThree
                                     ? `bg-gradient-to-br ${colors?.bg} border-2 ${colors?.border} ${colors?.glow}`
                                     : 'card border-2 border-transparent hover:border-[#27272a]'
@@ -128,7 +128,7 @@ export const LeaderboardView = () => {
                                 </div>
 
                                 {/* Net Worth */}
-                                <div className="text-right">
+                                <div className="text-right pl-4">
                                     <div className={`font-bold text-[18px] ${isTopThree ? 'text-white' : 'text-white'
                                         }`}>
                                         ${(entry.netWorth / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

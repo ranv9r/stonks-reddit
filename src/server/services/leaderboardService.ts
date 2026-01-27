@@ -46,33 +46,28 @@ export async function registerUserOnLeaderboard(userId: string): Promise<void> {
 /**
  * Gets the leaderboard data for display.
  */
+import { reddit } from '@devvit/web/server';
+
 export async function getLeaderboard(
     currentUserId: string | null
 ): Promise<LeaderboardResponse> {
     // Get top traders
     const topEntries = await redisService.getTopLeaderboard(LEADERBOARD_TOP_N);
 
-    const topTraders: LeaderboardEntry[] = topEntries.map((entry, i) => ({
-        rank: i + 1,
-        userId: entry.userId,
-        username: `u/${entry.userId.substring(0, 8)}...`, // Placeholder - fetch real username later
-        netWorth: entry.score,
-        isCurrentUser: entry.userId === currentUserId,
-    }));
-
     // Get current user's rank if not in top N
-    let userRank: LeaderboardEntry | null = null;
+    let userRankEntry: LeaderboardEntry | null = null;
+    let rank: number | null = null;
 
     if (currentUserId) {
-        const isInTop = topTraders.some((t) => t.isCurrentUser);
+        const isInTop = topEntries.some((entry) => entry.userId === currentUserId);
 
         if (!isInTop) {
-            const rank = await redisService.getUserRank(currentUserId);
-            const netWorth = await tradingEngine.calculateNetWorth(currentUserId, STARTING_BALANCE);
-
+            rank = await redisService.getUserRank(currentUserId);
             if (rank !== null) {
-                userRank = {
-                    rank: rank + 1, // zRank is 0-indexed
+                const netWorth = await tradingEngine.calculateNetWorth(currentUserId, STARTING_BALANCE);
+                // Placeholder, will fetch name below
+                userRankEntry = {
+                    rank: rank + 1,
                     userId: currentUserId,
                     username: 'You',
                     netWorth,
@@ -82,12 +77,53 @@ export async function getLeaderboard(
         }
     }
 
+    // Collect all unique User IDs to fetch names
+    const userIdsToFetch = new Set<string>();
+    topEntries.forEach(entry => userIdsToFetch.add(entry.userId));
+    if (userRankEntry) userIdsToFetch.add(userRankEntry.userId);
+
+    // Fetch usernames in parallel
+    const usernameMap = new Map<string, string>();
+
+    try {
+        await Promise.all(
+            Array.from(userIdsToFetch).map(async (uid) => {
+                let name = `u/${uid.substring(0, 8)}`;
+                try {
+                    const user = await reddit.getUserById(uid as `t2_${string}`);
+                    if (user) {
+                        name = user.username.startsWith('u/') ? user.username : `u/${user.username}`;
+                    }
+                } catch (err) {
+                    console.warn(`[Leaderboard] Failed to fetch user ${uid}:`, err);
+                }
+                usernameMap.set(uid, name);
+            })
+        );
+    } catch (err) {
+        console.error('[Leaderboard] Error fetching usernames:', err);
+    }
+
+    // Build final top traders list
+    const topTraders: LeaderboardEntry[] = topEntries.map((entry, i) => ({
+        rank: i + 1,
+        userId: entry.userId,
+        username: usernameMap.get(entry.userId) || `u/${entry.userId.substring(0, 8)}`,
+        netWorth: entry.score,
+        isCurrentUser: entry.userId === currentUserId,
+    }));
+
+    // Update current user rank entry with name if it exists (though UI might say "You")
+    if (userRankEntry) {
+        userRankEntry.username = usernameMap.get(userRankEntry.userId) || 'You';
+    }
+
     // Get total participants
     const totalParticipants = await redisService.getLeaderboardCount();
 
     return {
         topTraders,
-        userRank,
+        userRank: userRankEntry,
         totalParticipants,
     };
 }
