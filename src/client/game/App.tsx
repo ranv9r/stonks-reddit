@@ -1,21 +1,38 @@
 /**
  * Main App component for Meme Stonks game.
- * Handles navigation between Market, Portfolio, and Leaderboard views.
+ * Handles navigation between Market, Portfolio, Leaderboard, and Admin views.
  * Optimized for mobile, tablet, and desktop responsiveness.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MarketView } from './views/MarketView';
 import { PortfolioView } from './views/PortfolioView';
 import { LeaderboardView } from './LeaderboardView';
 import { StockDetailView } from './views/StockDetailView';
-import { ChartIcon, BriefcaseIcon, TrophyIcon, LogoChartIcon } from './components/Icons';
+import { AdminView } from './views/AdminView';
+import { ChartIcon, BriefcaseIcon, TrophyIcon, LogoChartIcon, SettingsIcon } from './components/Icons';
 
-type View = 'market' | 'portfolio' | 'leaderboard' | 'detail';
+type View = 'market' | 'portfolio' | 'leaderboard' | 'detail' | 'admin';
 
 export const App = () => {
   const [currentView, setCurrentView] = useState<View>('market');
   const [selectedStonkId, setSelectedStonkId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check if user is a moderator on mount
+  useEffect(() => {
+    const checkModStatus = async () => {
+      try {
+        const response = await fetch('/api/mod/check');
+        const data = await response.json();
+        setIsAdmin(data.isModerator === true);
+      } catch (err) {
+        console.error('Failed to check mod status:', err);
+        setIsAdmin(false);
+      }
+    };
+    checkModStatus();
+  }, []);
 
   const handleStonkClick = (stonkId: string) => {
     setSelectedStonkId(stonkId);
@@ -61,6 +78,11 @@ export const App = () => {
               <LeaderboardView />
             </div>
           )}
+          {currentView === 'admin' && isAdmin && (
+            <div className="view-enter">
+              <AdminView />
+            </div>
+          )}
           {currentView === 'detail' && selectedStonkId && (
             <div className="view-enter">
               <StockDetailView stonkId={selectedStonkId} onBack={handleBackToMarket} />
@@ -75,8 +97,8 @@ export const App = () => {
           <button
             onClick={() => setCurrentView('market')}
             className={`flex-1 flex flex-col items-center gap-1.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'market'
-                ? 'text-[#FF4500]'
-                : 'text-[#71717a] hover:text-[#a1a1aa]'
+              ? 'text-[#FF4500]'
+              : 'text-[#71717a] hover:text-[#a1a1aa]'
               }`}
             aria-label="Market"
           >
@@ -92,8 +114,8 @@ export const App = () => {
           <button
             onClick={() => setCurrentView('portfolio')}
             className={`flex-1 flex flex-col items-center gap-1.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'portfolio'
-                ? 'text-[#FF4500]'
-                : 'text-[#71717a] hover:text-[#a1a1aa]'
+              ? 'text-[#FF4500]'
+              : 'text-[#71717a] hover:text-[#a1a1aa]'
               }`}
             aria-label="Portfolio"
           >
@@ -109,8 +131,8 @@ export const App = () => {
           <button
             onClick={() => setCurrentView('leaderboard')}
             className={`flex-1 flex flex-col items-center gap-1.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'leaderboard'
-                ? 'text-[#FF4500]'
-                : 'text-[#71717a] hover:text-[#a1a1aa]'
+              ? 'text-[#FF4500]'
+              : 'text-[#71717a] hover:text-[#a1a1aa]'
               }`}
             aria-label="Leaderboard"
           >
@@ -123,8 +145,29 @@ export const App = () => {
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-[#FF4500] rounded-t-full"></div>
             )}
           </button>
+          {/* Admin Tab - Only visible for moderators */}
+          {isAdmin && (
+            <button
+              onClick={() => setCurrentView('admin')}
+              className={`flex-1 flex flex-col items-center gap-1.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'admin'
+                ? 'text-[#FF4500]'
+                : 'text-[#71717a] hover:text-[#a1a1aa]'
+                }`}
+              aria-label="Admin"
+            >
+              <SettingsIcon size={22} />
+              <div className={`text-xs sm:text-sm font-medium transition-all ${currentView === 'admin' ? 'scale-105' : 'scale-100'
+                }`}>
+                Admin
+              </div>
+              {currentView === 'admin' && (
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-[#FF4500] rounded-t-full"></div>
+              )}
+            </button>
+          )}
         </nav>
       )}
     </div>
   );
 };
+

@@ -4,13 +4,48 @@
  */
 
 import { Router } from 'express';
-import { context } from '@devvit/web/server';
+import { context, reddit } from '@devvit/web/server';
 import { STARTING_BALANCE, DEFAULT_BASE_PRICE, DEFAULT_X_VIRT } from '../../shared/config';
 import * as redisService from '../services/redis';
 import * as stressTestService from '../services/stressTestService';
 import { createPost } from '../core/post';
 
 const router = Router();
+
+/**
+ * Helper function to check if the current user is a moderator.
+ */
+async function isCurrentUserModerator(): Promise<boolean> {
+    const { userId, subredditName } = context;
+    if (!userId || !subredditName) return false;
+
+    try {
+        const mods = await reddit.getModerators({ subredditName }).all();
+        return mods.some(mod => mod.id === userId);
+    } catch (error) {
+        console.error('[Mod Check] Error checking moderator status:', error);
+        return false;
+    }
+}
+
+/**
+ * GET /api/mod/check - Check if current user is a moderator.
+ */
+router.get('/api/mod/check', async (_req, res) => {
+    try {
+        const { userId } = context;
+        if (!userId) {
+            res.json({ isModerator: false });
+            return;
+        }
+
+        const isMod = await isCurrentUserModerator();
+        res.json({ isModerator: isMod });
+    } catch (error) {
+        console.error('[Mod Check] Error:', error);
+        res.json({ isModerator: false });
+    }
+});
 
 /**
  * POST /internal/menu/create-game-post - Create a new stonks trading post.
@@ -91,11 +126,14 @@ router.post('/api/mod/stonks', async (req, res) => {
             return;
         }
 
-        // TODO: Add moderator check
-        // const user = await reddit.getCurrentUser();
-        // if (!user?.isModerator) ...
+        // Check if user is a moderator
+        const isMod = await isCurrentUserModerator();
+        if (!isMod) {
+            res.status(403).json({ error: 'Must be a moderator' });
+            return;
+        }
 
-        const { name, ticker, icon, basePrice } = req.body;
+        const { name, ticker, icon, basePrice, imageUrl } = req.body;
 
         // Validate input
         if (!name || !ticker) {
@@ -126,7 +164,8 @@ router.post('/api/mod/stonks', async (req, res) => {
             targetPrice,
             xVirt,
             yVirt,
-            userId
+            userId,
+            imageUrl
         );
 
         console.log(`[Mod] Created stonk: ${stonk.ticker} by ${userId}`);
@@ -147,6 +186,200 @@ router.get('/api/mod/stonks', async (_req, res) => {
     } catch (error) {
         console.error('[List Stonks] Error:', error);
         res.status(500).json({ error: 'Failed to list stonks' });
+    }
+});
+
+/**
+ * PUT /api/mod/stonks/:id - Update a stonk.
+ */
+router.put('/api/mod/stonks/:id', async (req, res) => {
+    try {
+        const { userId } = context;
+        if (!userId) {
+            res.status(401).json({ error: 'Must be logged in' });
+            return;
+        }
+
+        const isMod = await isCurrentUserModerator();
+        if (!isMod) {
+            res.status(403).json({ error: 'Must be a moderator' });
+            return;
+        }
+
+        const { id } = req.params;
+        const { name, icon, imageUrl } = req.body;
+
+        const stonk = await redisService.updateStonk(id, { name, icon, imageUrl });
+        if (!stonk) {
+            res.status(404).json({ error: 'Stonk not found' });
+            return;
+        }
+
+        console.log(`[Mod] Updated stonk: ${id} by ${userId}`);
+        res.json({ success: true, stonk });
+    } catch (error) {
+        console.error('[Update Stonk] Error:', error);
+        res.status(500).json({ error: 'Failed to update stonk' });
+    }
+});
+
+/**
+ * DELETE /api/mod/stonks/:id - Delete a stonk.
+ */
+router.delete('/api/mod/stonks/:id', async (req, res) => {
+    try {
+        const { userId } = context;
+        if (!userId) {
+            res.status(401).json({ error: 'Must be logged in' });
+            return;
+        }
+
+        const isMod = await isCurrentUserModerator();
+        if (!isMod) {
+            res.status(403).json({ error: 'Must be a moderator' });
+            return;
+        }
+
+        const { id } = req.params;
+        console.log(`[Mod] Received delete request for ID: "${id}"`);
+
+        const stonk = await redisService.getStonk(id);
+        if (!stonk) {
+            res.status(404).json({ error: 'Stonk not found' });
+            return;
+        }
+
+        // Liquidation Logic: Refund all holders at current price
+        let refundCount = 0;
+        let totalRefunded = 0;
+        let liquidationError = null;
+
+        try {
+            const currentPrice = stonk.currentPrice;
+            const allUserIds = await redisService.getAllUserIds();
+            
+            console.log(`[Delete Stonk] Liquidation starting for ${stonk.ticker} ($${currentPrice}) - ${allUserIds.length} users`);
+
+            if (allUserIds.length > 0) {
+                // Process users in larger batches to avoid timeout
+                const BATCH_SIZE = 50; 
+                for (let i = 0; i < allUserIds.length; i += BATCH_SIZE) {
+                    const batch = allUserIds.slice(i, i + BATCH_SIZE);
+                    console.log(`[Delete Stonk] Processing batch ${i/BATCH_SIZE + 1} of ${Math.ceil(allUserIds.length/BATCH_SIZE)}`);
+                    
+                    await Promise.all(batch.map(async (uid) => {
+                        try {
+                            const user = await redisService.getUser(uid);
+                            // Only proceed if user has the stock in portfolio
+                            if (user && user.portfolio && user.portfolio[id]) {
+                                const holding = user.portfolio[id];
+                                if (holding.qty > 0) {
+                                    const refundAmount = Math.round(holding.qty * currentPrice);
+
+                                    if (refundAmount > 0) {
+                                        // Update wallet
+                                        await redisService.updateWalletBalance(uid, refundAmount);
+                                        
+                                        // Remove from portfolio
+                                        const newPortfolio = { ...user.portfolio };
+                                        delete newPortfolio[id];
+                                        await redisService.updatePortfolio(uid, newPortfolio);
+
+                                        refundCount++;
+                                        totalRefunded += refundAmount;
+                                    }
+                                }
+                            }
+                        } catch (err) {
+                            console.error(`[Delete Stonk] Error processing user ${uid}:`, err);
+                        }
+                    }));
+                }
+            } else {
+                console.warn('[Delete Stonk] No users found in leaderboard to check for holdings.');
+            }
+        } catch (liqErr) {
+            console.error('[Delete Stonk] Liquidation failed (critical):', liqErr);
+            liquidationError = String(liqErr);
+        }
+
+        console.log(`[Delete Stonk] Liquidation finished. Refunded: ${refundCount}`);
+
+        // Proceed with deletion immediately after liquidation attempt
+        try {
+            const deleted = await redisService.deleteStonk(id);
+            if (!deleted) {
+                throw new Error('redisService.deleteStonk returned false');
+            }
+        } catch (delErr) {
+             console.error('[Delete Stonk] Delete operation failed:', delErr);
+             res.status(500).json({ error: 'Failed to delete data. Liquidation status: ' + (liquidationError ? 'Errors' : 'OK') });
+             return;
+        }
+
+        let message = `Deleted ${stonk.ticker}. Liquidated ${refundCount} holdings for $${(totalRefunded/100).toFixed(2)}.`;
+        if (liquidationError) {
+            message += ` (Warning: Liquidation had errors: ${liquidationError})`;
+        }
+
+        res.json({ success: true, message });
+    } catch (error) {
+        console.error('[Delete Stonk] Error:', error);
+        res.status(500).json({ error: 'Failed to delete stonk' });
+    }
+});
+
+/**
+ * POST /api/mod/reset-game - Reset game data (API version for client).
+ */
+router.post('/api/mod/reset-game', async (_req, res) => {
+    try {
+        const { userId } = context;
+        if (!userId) {
+            res.status(401).json({ error: 'Must be logged in' });
+            return;
+        }
+
+        const isMod = await isCurrentUserModerator();
+        if (!isMod) {
+            res.status(403).json({ error: 'Must be a moderator' });
+            return;
+        }
+
+        console.log(`[Reset] Game reset initiated by ${userId}`);
+
+        // Get all users from leaderboard and reset them
+        const allUserIds = await redisService.getAllUserIds();
+        for (const uid of allUserIds) {
+            await redisService.resetUser(uid, STARTING_BALANCE);
+            await redisService.updateLeaderboardScore(uid, STARTING_BALANCE);
+        }
+        console.log(`[Reset] Reset ${allUserIds.length} users to $${STARTING_BALANCE / 100}`);
+
+        // Reset all stocks to base price
+        const stonks = await redisService.getAllStonks();
+        for (const stock of stonks) {
+            await redisService.deletePriceHistory(stock.id);
+            await redisService.createStonk(
+                stock.id,
+                stock.name,
+                stock.ticker,
+                stock.icon,
+                DEFAULT_BASE_PRICE,
+                DEFAULT_X_VIRT,
+                DEFAULT_X_VIRT / DEFAULT_BASE_PRICE,
+                'system',
+                stock.imageUrl
+            );
+        }
+
+        res.json({
+            success: true,
+            message: `Reset ${allUserIds.length} users and ${stonks.length} stocks.`
+        });
+    } catch (error) {
+        console.error('[Reset] Error:', error);
+        res.status(500).json({ error: 'Failed to reset game' });
     }
 });
 

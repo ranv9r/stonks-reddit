@@ -9,6 +9,7 @@ interface Holding {
     stonkId: string;
     ticker: string;
     icon: string;
+    imageUrl?: string;
     quantity: number;
     avgBuyPrice: number;
     currentPrice: number;
@@ -115,7 +116,15 @@ export const PortfolioView = ({ onStonkClick }: PortfolioViewProps) => {
                     >
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-3">
-                                <span className="text-3xl">{holding.icon}</span>
+                                {holding.imageUrl ? (
+                                    <img
+                                        src={holding.imageUrl}
+                                        alt={holding.ticker}
+                                        className="w-10 h-10 rounded-lg object-cover"
+                                    />
+                                ) : (
+                                    <span className="text-3xl">{holding.icon}</span>
+                                )}
                                 <div className="text-left">
                                     <div className="font-bold text-white text-lg group-hover:text-[#FF4500] transition-colors">{holding.ticker}</div>
                                     <div className="text-sm text-[#71717a]">

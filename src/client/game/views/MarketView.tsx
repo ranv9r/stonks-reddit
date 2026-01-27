@@ -12,6 +12,7 @@ interface Stonk {
     name: string;
     ticker: string;
     icon: string;
+    imageUrl?: string;
     currentPrice: number;
     priceChange: number;
     priceChangePercent: number;
@@ -166,7 +167,15 @@ export const MarketView = ({ onStonkClick }: MarketViewProps) => {
                         <div className="grid grid-cols-[auto_1fr_auto] gap-4 items-center">
                             {/* Icon + Name */}
                             <div className="flex items-center gap-3">
-                                <div className="text-3xl">{stonk.icon}</div>
+                                {stonk.imageUrl ? (
+                                    <img
+                                        src={stonk.imageUrl}
+                                        alt={stonk.ticker}
+                                        className="w-10 h-10 rounded-lg object-cover"
+                                    />
+                                ) : (
+                                    <div className="text-3xl">{stonk.icon}</div>
+                                )}
                                 <div className="text-left">
                                     <div className="font-bold text-white text-lg group-hover:text-[#FF4500] transition-colors">{stonk.ticker}</div>
                                     <div className="text-sm text-[#71717a]">{stonk.name}</div>
