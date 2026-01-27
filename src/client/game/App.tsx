@@ -30,14 +30,14 @@ export const App = () => {
   return (
     <div className="flex flex-col h-screen bg-[#0f0f0f] max-w-[100vw]">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 lg:px-6 py-4 lg:py-5 border-b border-[#27272a] safe-area-top bg-[#0f0f0f]">
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-center px-4 lg:px-6 py-4 lg:py-5 border-b border-[#27272a] safe-area-top bg-[#0f0f0f] relative">
+        <div className="flex items-center gap-2 justify-center">
           <LogoChartIcon size={28} className="text-[#FF4500]" />
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gradient">
-            Meme Stonks
+            Stonks
           </h1>
         </div>
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#18181b] rounded-full border border-[#27272a]">
+        <div className="absolute right-4 lg:right-6 hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#18181b] rounded-full border border-[#27272a]">
           <div className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse"></div>
           <span className="text-xs lg:text-sm text-[#a1a1aa] font-medium">Live</span>
         </div>
@@ -45,7 +45,7 @@ export const App = () => {
 
       {/* Main Content - Scrollable with View Transitions */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="min-h-full">
+        <div className="min-h-full game-content-wrapper">
           {currentView === 'market' && (
             <div className="view-enter">
               <MarketView onStonkClick={handleStonkClick} />
@@ -74,14 +74,14 @@ export const App = () => {
         <nav className="flex items-center justify-around border-t border-[#27272a] bg-[#0f0f0f] safe-area-bottom shadow-lg">
           <button
             onClick={() => setCurrentView('market')}
-            className={`flex-1 flex flex-col items-center gap-1.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'market'
-                ? 'text-[#FF4500]'
-                : 'text-[#71717a] hover:text-[#a1a1aa]'
+            className={`relative flex-1 flex flex-col items-center gap-0.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'market'
+              ? 'text-[#FF4500]'
+              : 'text-[#71717a] hover:text-[#a1a1aa]'
               }`}
             aria-label="Market"
           >
             <ChartIcon size={22} />
-            <div className={`text-xs sm:text-sm font-medium transition-all ${currentView === 'market' ? 'scale-105' : 'scale-100'
+            <div className={`text-[13px] sm:text-[15px] font-medium transition-all ${currentView === 'market' ? 'scale-105' : 'scale-100'
               }`}>
               Market
             </div>
@@ -91,14 +91,14 @@ export const App = () => {
           </button>
           <button
             onClick={() => setCurrentView('portfolio')}
-            className={`flex-1 flex flex-col items-center gap-1.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'portfolio'
-                ? 'text-[#FF4500]'
-                : 'text-[#71717a] hover:text-[#a1a1aa]'
+            className={`relative flex-1 flex flex-col items-center gap-0.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'portfolio'
+              ? 'text-[#FF4500]'
+              : 'text-[#71717a] hover:text-[#a1a1aa]'
               }`}
             aria-label="Portfolio"
           >
             <BriefcaseIcon size={22} />
-            <div className={`text-xs sm:text-sm font-medium transition-all ${currentView === 'portfolio' ? 'scale-105' : 'scale-100'
+            <div className={`text-[13px] sm:text-[15px] font-medium transition-all ${currentView === 'portfolio' ? 'scale-105' : 'scale-100'
               }`}>
               Portfolio
             </div>
@@ -108,14 +108,14 @@ export const App = () => {
           </button>
           <button
             onClick={() => setCurrentView('leaderboard')}
-            className={`flex-1 flex flex-col items-center gap-1.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'leaderboard'
-                ? 'text-[#FF4500]'
-                : 'text-[#71717a] hover:text-[#a1a1aa]'
+            className={`relative flex-1 flex flex-col items-center gap-0.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'leaderboard'
+              ? 'text-[#FF4500]'
+              : 'text-[#71717a] hover:text-[#a1a1aa]'
               }`}
             aria-label="Leaderboard"
           >
             <TrophyIcon size={22} />
-            <div className={`text-xs sm:text-sm font-medium transition-all ${currentView === 'leaderboard' ? 'scale-105' : 'scale-100'
+            <div className={`text-[13px] sm:text-[15px] font-medium transition-all ${currentView === 'leaderboard' ? 'scale-105' : 'scale-100'
               }`}>
               Leaderboard
             </div>

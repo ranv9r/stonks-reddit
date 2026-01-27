@@ -135,23 +135,23 @@ export const MarketView = ({ onStonkClick }: MarketViewProps) => {
     if (!marketData) return null;
 
     return (
-        <div className="p-4 sm:p-6 fade-in">
+        <div className="px-4 py-4 sm:px-6 sm:py-6 fade-in">
             {/* Wallet Balance Card */}
-            <div className="glass-card-elevated p-5 mb-6 relative overflow-hidden">
+            <div className="glass-card-elevated p-5 mb-5 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#FF4500] to-transparent opacity-10 blur-2xl rounded-full"></div>
                 <div className="relative z-10">
-                    <div className="text-[#a1a1aa] text-sm font-medium mb-2 flex items-center gap-2">
+                    <div className="text-[#a1a1aa] text-[13px] font-medium mb-2 flex items-center gap-2">
                         <CoinIcon size={16} />
                         Wallet Balance
                     </div>
-                    <div className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white">
+                    <div className="text-[30px] sm:text-[35px] lg:text-[40px] font-bold text-white">
                         ${(marketData.walletBalance / 100).toFixed(2)}
                     </div>
                 </div>
             </div>
 
             {/* Stonks List Header */}
-            <div className="px-2 pb-3 text-xs text-[#71717a] font-semibold uppercase tracking-wider">
+            <div className="px-1 pb-3 text-[11px] text-[#71717a] font-semibold uppercase tracking-wider">
                 Available Assets
             </div>
 
@@ -166,19 +166,19 @@ export const MarketView = ({ onStonkClick }: MarketViewProps) => {
                         <div className="grid grid-cols-[auto_1fr_auto] gap-4 items-center">
                             {/* Icon + Name */}
                             <div className="flex items-center gap-3">
-                                <div className="text-3xl">{stonk.icon}</div>
+                                <div className="text-[28px]">{stonk.icon}</div>
                                 <div className="text-left">
-                                    <div className="font-bold text-white text-lg group-hover:text-[#FF4500] transition-colors">{stonk.ticker}</div>
-                                    <div className="text-sm text-[#71717a]">{stonk.name}</div>
+                                    <div className="font-bold text-white text-[15px] group-hover:text-[#FF4500] transition-colors">{stonk.ticker}</div>
+                                    <div className="text-[13px] text-[#71717a]">{stonk.name}</div>
                                 </div>
                             </div>
 
                             {/* Price + Change */}
                             <div className="text-right">
-                                <div className="text-white font-semibold text-lg">
+                                <div className="text-white font-semibold text-[15px]">
                                     ${(stonk.currentPrice / 100).toFixed(2)}
                                 </div>
-                                <div className={`flex items-center gap-1 justify-end text-sm font-semibold mt-1 ${stonk.priceChangePercent >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'
+                                <div className={`flex items-center gap-1 justify-end text-[13px] font-semibold mt-1 ${stonk.priceChangePercent >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'
                                     }`}>
                                     {stonk.priceChangePercent >= 0 ? (
                                         <TrendingUpIcon size={14} />
@@ -196,9 +196,9 @@ export const MarketView = ({ onStonkClick }: MarketViewProps) => {
 
             {marketData.stonks.length === 0 && (
                 <div className="text-center text-[#71717a] mt-12 p-8">
-                    <div className="text-4xl mb-3">📊</div>
-                    <div className="text-lg font-medium">No assets available yet</div>
-                    <div className="text-sm mt-2">Check back later!</div>
+                    <div className="text-[35px] mb-3">📊</div>
+                    <div className="text-[15px] font-medium">No assets available yet</div>
+                    <div className="text-[13px] mt-2">Check back later!</div>
                 </div>
             )}
         </div>

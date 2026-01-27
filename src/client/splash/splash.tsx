@@ -112,10 +112,9 @@ export const Splash = () => {
           {/* Logo */}
           <div className="splash-logo">
             <div className="logo-row">
-              <span className="logo-meme">Meme</span>
               <LogoChartIcon size={36} className="logo-icon" />
+              <span className="logo-stonks">Stonks</span>
             </div>
-            <span className="logo-stonks">Stonks</span>
           </div>
 
           {/* Net Worth */}

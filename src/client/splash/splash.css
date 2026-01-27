@@ -64,8 +64,7 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    display: block;
-    margin-top: -0.25rem;
+    display: inline;
     line-height: 1;
 }
 
@@ -154,12 +153,12 @@
     font-size: 1.25rem;
     cursor: pointer;
     box-shadow: 0 8px 25px rgba(255, 69, 0, 0.5);
-    transform: rotate(-3deg);
+    transform: rotate(0deg);
     transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .splash-cta:hover {
-    transform: rotate(0deg) scale(1.05) translateY(-2px);
+    transform: scale(1.05) translateY(-2px);
     background: #ff5722;
     box-shadow: 0 12px 30px rgba(255, 69, 0, 0.6);
 }

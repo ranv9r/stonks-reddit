@@ -1,9 +1,10 @@
 /**
- * Stock Detail View - Shows price chart and buy/sell controls for a specific stonk.
+ * Stock Detail View - Shows interactive price chart and buy/sell modal for a specific stonk.
+ * Redesigned to match Groww's modern trading app UI.
  */
 
-import { useState, useEffect } from 'react';
-import { ArrowLeftIcon, TrendingUpIcon, TrendingDownIcon } from '../components/Icons';
+import { useState, useEffect, useRef } from 'react';
+import { ArrowLeftIcon } from '../components/Icons';
 
 interface PriceHistoryEntry {
     t: number; // timestamp
@@ -41,8 +42,27 @@ interface StockDetailViewProps {
     onBack: () => void;
 }
 
-const SimpleChart = ({ data }: { data: PriceHistoryEntry[] }) => {
-    if (!data || data.length < 2) return <div className="text-gray-500 text-sm flex items-center justify-center h-full">Not enough data</div>;
+interface TooltipData {
+    x: number;
+    y: number;
+    price: number;
+    time: string;
+}
+
+/**
+ * Interactive chart component with hover/touch tooltip showing price at any point.
+ */
+const InteractiveChart = ({ data }: { data: PriceHistoryEntry[] }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+
+    if (!data || data.length < 2) {
+        return (
+            <div className="text-gray-500 text-sm flex items-center justify-center h-full">
+                Not enough data
+            </div>
+        );
+    }
 
     const prices = data.map(d => d.p);
     const min = Math.min(...prices);
@@ -52,48 +72,277 @@ const SimpleChart = ({ data }: { data: PriceHistoryEntry[] }) => {
     // SVG Dimensions (viewBox units)
     const width = 100;
     const height = 100;
+    const padding = 5;
 
-    // Create points
+    // Create points for polyline
     const points = data.map((d, i) => {
-        const x = (i / (data.length - 1)) * width;
+        const x = padding + (i / (data.length - 1)) * (width - 2 * padding);
         const normalizedY = (d.p - min) / range;
-        const y = height - (normalizedY * height * 0.8) - (height * 0.1); // Add padding
-        return `${x},${y}`;
-    }).join(' ');
+        const y = height - padding - normalizedY * (height - 2 * padding);
+        return { x, y, price: d.p, time: d.t };
+    });
 
+    const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ');
     const isPositive = (prices[prices.length - 1] ?? 0) >= (prices[0] ?? 0);
     const color = isPositive ? '#00D084' : '#FF4444';
 
-    // Create fill area (closed path)
-    const fillPoints = `${points} ${width},${height} 0,${height}`;
+    // Create fill area
+    const fillPoints = `${polylinePoints} ${width - padding},${height - padding} ${padding},${height - padding}`;
+
+    /**
+     * Handles mouse/touch movement to show tooltip at nearest data point.
+     */
+    const handleInteraction = (clientX: number) => {
+        if (!containerRef.current) return;
+
+        const rect = containerRef.current.getBoundingClientRect();
+        const relativeX = clientX - rect.left;
+        const percentX = relativeX / rect.width;
+
+        // Find nearest data point
+        const index = Math.round(percentX * (data.length - 1));
+        const clampedIndex = Math.max(0, Math.min(data.length - 1, index));
+        const point = points[clampedIndex];
+        const dataPoint = data[clampedIndex];
+
+        if (point && dataPoint) {
+            const date = new Date(dataPoint.t);
+            const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            setTooltip({
+                x: (point.x / width) * 100,
+                y: (point.y / height) * 100,
+                price: dataPoint.p,
+                time: timeStr
+            });
+        }
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => handleInteraction(e.clientX);
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (e.touches[0]) handleInteraction(e.touches[0].clientX);
+    };
+    const handleMouseLeave = () => setTooltip(null);
+    const handleTouchEnd = () => setTooltip(null);
 
     return (
-        <div className="relative w-full h-full pr-10">
-            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible" preserveAspectRatio="none">
+        <div
+            ref={containerRef}
+            className="relative w-full h-full cursor-crosshair"
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+        >
+            <svg
+                viewBox={`0 0 ${width} ${height}`}
+                className="w-full h-full overflow-visible"
+                preserveAspectRatio="none"
+            >
                 <defs>
-                    <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
-                        <stop offset="0%" stopColor={color} stopOpacity="0.2" />
-                        <stop offset="100%" stopColor={color} stopOpacity="0" />
+                    <linearGradient id="chartGradientFill" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+                        <stop offset="100%" stopColor={color} stopOpacity="0.05" />
                     </linearGradient>
                 </defs>
+
+                {/* Fill area */}
                 <polygon
                     points={fillPoints}
-                    fill="url(#chartGradient)"
+                    fill="url(#chartGradientFill)"
                 />
+
+                {/* Line */}
                 <polyline
                     fill="none"
                     stroke={color}
                     strokeWidth="2"
-                    points={points}
+                    points={polylinePoints}
                     vectorEffect="non-scaling-stroke"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
                 />
             </svg>
-            {/* Y-Axis Labels */}
-            <div className="absolute top-0 right-0 text-xs text-gray-500 font-mono">
-                ${(max / 100).toFixed(2)}
-            </div>
-            <div className="absolute bottom-4 right-0 text-xs text-gray-500 font-mono">
-                ${(min / 100).toFixed(2)}
+
+            {/* HTML-based tooltip indicator (outside SVG to prevent stretching) */}
+            {tooltip && (
+                <>
+                    {/* Vertical line */}
+                    <div
+                        className="absolute top-0 bottom-0 w-px bg-[#FF4500] opacity-40 pointer-events-none"
+                        style={{ left: `${tooltip.x}%` }}
+                    />
+                    {/* Small circle dot */}
+                    <div
+                        className="absolute w-2 h-2 rounded-full bg-[#FF4500] opacity-80 pointer-events-none transform -translate-x-1/2 -translate-y-1/2"
+                        style={{ left: `${tooltip.x}%`, top: `${tooltip.y}%` }}
+                    />
+                </>
+            )}
+
+            {/* Tooltip box */}
+            {tooltip && (
+                <div
+                    className="absolute pointer-events-none bg-[#1f1f1f] border border-[#333] rounded-lg px-3 py-2 shadow-lg z-10 transform -translate-x-1/2"
+                    style={{
+                        left: `${tooltip.x}%`,
+                        top: `${tooltip.y}%`,
+                        marginTop: '-50px'
+                    }}
+                >
+                    <div className="text-white font-bold text-sm">
+                        ${(tooltip.price / 100).toFixed(2)}
+                    </div>
+                    <div className="text-gray-400 text-xs">
+                        {tooltip.time}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+/**
+ * Trade modal component for buy/sell actions.
+ */
+interface TradeModalProps {
+    isOpen: boolean;
+    action: 'buy' | 'sell';
+    stonk: StonkState;
+    userHolding: Holding | null;
+    onClose: () => void;
+    onTrade: (amount: number) => Promise<{ success: boolean; message: string }>;
+}
+
+const TradeModal = ({ isOpen, action, stonk, userHolding, onClose, onTrade }: TradeModalProps) => {
+    const [amount, setAmount] = useState('');
+    const [trading, setTrading] = useState(false);
+    const [message, setMessage] = useState<string | null>(null);
+
+    if (!isOpen) return null;
+
+    const handleSubmit = async () => {
+        if (!amount || parseFloat(amount) <= 0) {
+            setMessage('Please enter a valid amount');
+            return;
+        }
+
+        setTrading(true);
+        setMessage(null);
+
+        const result = await onTrade(parseFloat(amount));
+
+        if (result.success) {
+            setMessage(`✅ ${result.message}`);
+            setAmount('');
+            setTimeout(() => {
+                onClose();
+                setMessage(null);
+            }, 1500);
+        } else {
+            setMessage(`❌ ${result.message}`);
+        }
+
+        setTrading(false);
+    };
+
+    const estimatedShares = amount && !isNaN(parseFloat(amount)) && stonk.currentPrice > 0
+        ? (parseFloat(amount) / (stonk.currentPrice / 100)).toFixed(4)
+        : '0';
+
+    const maxSellValue = userHolding
+        ? Math.floor((userHolding.qty * stonk.currentPrice) / 100 * 100) / 100
+        : 0;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+            {/* Backdrop */}
+            <div
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                onClick={onClose}
+            />
+
+            {/* Modal */}
+            <div className="relative w-full max-w-md bg-[#1A1A1B] rounded-t-2xl p-6 animate-slide-up">
+                {/* Handle */}
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 bg-gray-600 rounded-full" />
+
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6 mt-2">
+                    <div className="flex items-center gap-3">
+                        <span className="text-2xl">{stonk.icon}</span>
+                        <div>
+                            <div className="text-white font-bold">{stonk.ticker}</div>
+                            <div className="text-gray-400 text-sm">{stonk.name}</div>
+                        </div>
+                    </div>
+                    <div className="text-right">
+                        <div className="text-white font-bold">${(stonk.currentPrice / 100).toFixed(2)}</div>
+                        <div className="text-gray-400 text-xs">Current Price</div>
+                    </div>
+                </div>
+
+                {/* Action Label */}
+                <div className={`text-center py-2 rounded-lg mb-4 ${action === 'buy'
+                    ? 'bg-[#00D084]/10 text-[#00D084]'
+                    : 'bg-[#FF4444]/10 text-[#FF4444]'
+                    }`}>
+                    {action === 'buy' ? 'Buy' : 'Sell'} {stonk.ticker}
+                </div>
+
+                {/* Amount Input */}
+                <div className="mb-4">
+                    <label className="block text-gray-400 text-sm mb-2">
+                        Amount (USD)
+                    </label>
+                    <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">$</span>
+                        <input
+                            type="number"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                            placeholder="0.00"
+                            className="w-full bg-[#0f0f0f] text-white text-xl rounded-lg pl-8 pr-4 py-4 outline-none focus:ring-2 focus:ring-[#00D084] border border-[#333]"
+                            disabled={trading}
+                            autoFocus
+                        />
+                    </div>
+
+                    {/* Quick amount buttons */}
+                    {action === 'sell' && maxSellValue > 0 && (
+                        <button
+                            onClick={() => setAmount(maxSellValue.toFixed(2))}
+                            className="mt-2 text-sm text-[#FF4444] hover:underline"
+                        >
+                            Sell All (${maxSellValue.toFixed(2)})
+                        </button>
+                    )}
+                </div>
+
+                {/* Estimated shares */}
+                <div className="bg-[#0f0f0f] rounded-lg p-4 mb-4 border border-[#333]">
+                    <div className="flex justify-between text-sm">
+                        <span className="text-gray-400">Estimated Shares</span>
+                        <span className="text-white font-mono">~{estimatedShares}</span>
+                    </div>
+                </div>
+
+                {/* Message */}
+                {message && (
+                    <div className="text-center text-sm mb-4">{message}</div>
+                )}
+
+                {/* Confirm Button */}
+                <button
+                    onClick={handleSubmit}
+                    disabled={trading || !amount}
+                    className={`w-full py-4 rounded-lg font-bold text-white transition-all ${action === 'buy'
+                        ? 'bg-[#00D084] hover:bg-[#00b874] disabled:opacity-50'
+                        : 'bg-[#FF4444] hover:bg-[#e63d3d] disabled:opacity-50'
+                        }`}
+                >
+                    {trading ? 'Processing...' : `Confirm ${action === 'buy' ? 'Buy' : 'Sell'}`}
+                </button>
             </div>
         </div>
     );
@@ -103,10 +352,8 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
     const [data, setData] = useState<StockDetailData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [action, setAction] = useState<'buy' | 'sell'>('buy');
-    const [amount, setAmount] = useState('');
-    const [trading, setTrading] = useState(false);
-    const [tradeMessage, setTradeMessage] = useState<string | null>(null);
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalAction, setModalAction] = useState<'buy' | 'sell'>('buy');
 
     useEffect(() => {
         fetchStockDetail();
@@ -114,6 +361,9 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
         return () => clearInterval(interval);
     }, [stonkId]);
 
+    /**
+     * Fetches stock detail data from the API.
+     */
     const fetchStockDetail = async () => {
         try {
             const res = await fetch(`/api/stonk/${stonkId}`);
@@ -128,26 +378,18 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
         }
     };
 
-    const handleTrade = async () => {
-        if (!amount || parseFloat(amount) <= 0) {
-            setTradeMessage('Please enter a valid amount');
-            return;
-        }
-
-        setTrading(true);
-        setTradeMessage(null);
-
+    /**
+     * Handles trade execution from the modal.
+     */
+    const handleTrade = async (amountDollars: number): Promise<{ success: boolean; message: string }> => {
         try {
             let payloadAmount = 0;
-            if (action === 'buy') {
-                // Buy: Input is in Dollars -> Convert to cents
-                payloadAmount = Math.floor(parseFloat(amount) * 100);
+            if (modalAction === 'buy') {
+                payloadAmount = Math.floor(amountDollars * 100);
             } else {
-                // Sell: Input is in Dollars -> Convert to shares
-                // data.stonk.currentPrice is in cents
                 if (data && data.stonk.currentPrice > 0) {
                     const priceDollars = data.stonk.currentPrice / 100;
-                    payloadAmount = parseFloat(amount) / priceDollars;
+                    payloadAmount = amountDollars / priceDollars;
                 }
             }
 
@@ -156,7 +398,7 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     stonkId,
-                    action,
+                    action: modalAction,
                     amount: payloadAmount,
                 }),
             });
@@ -164,17 +406,21 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
             const result = await res.json();
 
             if (result.success) {
-                setTradeMessage(`✅ ${result.message}`);
-                setAmount('');
-                fetchStockDetail(); // Refresh data
-            } else {
-                setTradeMessage(`❌ ${result.message}`);
+                fetchStockDetail();
             }
+
+            return { success: result.success, message: result.message };
         } catch (err) {
-            setTradeMessage(`❌ Trade failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        } finally {
-            setTrading(false);
+            return {
+                success: false,
+                message: err instanceof Error ? err.message : 'Trade failed'
+            };
         }
+    };
+
+    const openModal = (action: 'buy' | 'sell') => {
+        setModalAction(action);
+        setModalOpen(true);
     };
 
     if (loading) {
@@ -188,10 +434,7 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
     if (error || !data) {
         return (
             <div className="p-4">
-                <button
-                    onClick={onBack}
-                    className="text-[#FF4500] mb-4"
-                >
+                <button onClick={onBack} className="text-[#FF4500] mb-4">
                     ← Back
                 </button>
                 <div className="text-red-500">Error: {error || 'No data'}</div>
@@ -200,61 +443,88 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
     }
 
     const { stonk, priceHistory, userHolding } = data;
+    const firstPrice = priceHistory[0]?.p ?? stonk.currentPrice;
     const priceChange = priceHistory.length > 1
-        ? stonk.currentPrice - priceHistory[0].p
+        ? stonk.currentPrice - firstPrice
         : 0;
-    const priceChangePercent = priceHistory.length > 1 && priceHistory[0].p > 0
-        ? ((priceChange / priceHistory[0].p) * 100)
+    const priceChangePercent = priceHistory.length > 1 && firstPrice > 0
+        ? ((priceChange / firstPrice) * 100)
         : 0;
 
+    // Calculate all-time high/low
+    const allPrices = priceHistory.map(p => p.p);
+    const allTimeHigh = allPrices.length > 0 ? Math.max(...allPrices) : stonk.currentPrice;
+    const allTimeLow = allPrices.length > 0 ? Math.min(...allPrices) : stonk.currentPrice;
+
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full bg-[#0f0f0f]">
             {/* Header */}
-            <div className="px-4 py-4 border-b border-[#27272a] bg-[#0f0f0f]">
+            <div className="px-4 py-3 flex items-center gap-4">
                 <button
                     onClick={onBack}
-                    className="flex items-center gap-2 text-[#FF4500] mb-3 hover:text-[#ff5722] transition-colors"
+                    className="p-2 hover:bg-[#1A1A1B] rounded-full transition-colors"
                 >
-                    <ArrowLeftIcon size={20} />
-                    <span className="font-medium">Back</span>
+                    <ArrowLeftIcon size={20} className="text-white" />
                 </button>
-                <div className="flex items-center gap-3">
-                    <span className="text-4xl">{stonk.icon}</span>
+                <div className="flex items-center gap-3 flex-1">
+                    <span className="text-3xl">{stonk.icon}</span>
                     <div>
-                        <h2 className="text-2xl font-bold text-white">{stonk.ticker}</h2>
-                        <p className="text-sm text-[#a1a1aa]">{stonk.name}</p>
+                        <h2 className="text-xl font-bold text-white">{stonk.ticker}</h2>
+                        <p className="text-xs text-[#a1a1aa]">{stonk.name}</p>
                     </div>
                 </div>
             </div>
 
-            {/* Price */}
-            <div className="px-4 py-4 border-b border-[#2d2d2d]">
+            {/* Price Display */}
+            <div className="px-4 py-2">
                 <div className="text-3xl font-bold text-white">
                     ${(stonk.currentPrice / 100).toFixed(2)}
                 </div>
-                <div
-                    className={`text-sm mt-1 ${priceChange >= 0 ? 'text-[#00D084]' : 'text-[#FF4444]'
-                        }`}
-                >
-                    {priceChange >= 0 ? '+' : ''}${(priceChange / 100).toFixed(2)} (
-                    {priceChangePercent.toFixed(2)}%)
+                <div className={`text-sm mt-1 flex items-center gap-1 ${priceChange >= 0 ? 'text-[#00D084]' : 'text-[#FF4444]'
+                    }`}>
+                    {priceChange >= 0 ? '▲' : '▼'} ${Math.abs(priceChange / 100).toFixed(2)} ({priceChangePercent >= 0 ? '+' : ''}{priceChangePercent.toFixed(2)}%)
                 </div>
             </div>
 
-            {/* Price Chart */}
-            <div className="px-4 py-6 flex-1 overflow-auto">
-                <div className="bg-[#1A1A1B] rounded-lg p-4 h-48 mb-4">
-                    <SimpleChart data={priceHistory} />
+            {/* Interactive Chart */}
+            <div className="px-4 py-2 space-y-3 overflow-auto">
+                <div className="bg-[#1A1A1B] rounded-xl h-36 p-3">
+                    <InteractiveChart data={priceHistory} />
+                </div>
+
+                {/* All-Time High/Low */}
+                <div className="bg-[#1A1A1B] rounded-xl p-3">
+                    <div className="text-gray-400 text-xs mb-2">All-Time Performance</div>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <div className="text-gray-500 text-[10px] mb-0.5">Low</div>
+                            <div className="text-white font-mono text-sm">${(allTimeLow / 100).toFixed(2)}</div>
+                        </div>
+                        <div className="flex-1 mx-3 h-1.5 bg-[#333] rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-gradient-to-r from-[#FF4444] via-[#FFaa00] to-[#00D084]"
+                                style={{
+                                    width: allTimeHigh > allTimeLow
+                                        ? `${((stonk.currentPrice - allTimeLow) / (allTimeHigh - allTimeLow)) * 100}%`
+                                        : '50%'
+                                }}
+                            />
+                        </div>
+                        <div className="text-right">
+                            <div className="text-gray-500 text-[10px] mb-0.5">High</div>
+                            <div className="text-white font-mono text-sm">${(allTimeHigh / 100).toFixed(2)}</div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* User Holding */}
                 {userHolding && userHolding.qty > 0 && (
-                    <div className="mt-4 bg-[#1A1A1B] rounded-lg p-4">
-                        <div className="text-gray-400 text-sm mb-2">Your Position</div>
+                    <div className="bg-[#1A1A1B] rounded-xl p-3">
+                        <div className="text-gray-400 text-sm mb-3">Your Position</div>
                         <div className="flex justify-between">
                             <div>
-                                <div className="text-white font-medium">{userHolding.qty.toFixed(2)} shares</div>
-                                <div className="text-gray-400 text-sm">
+                                <div className="text-white font-medium">{userHolding.qty.toFixed(4)} shares</div>
+                                <div className="text-gray-500 text-xs">
                                     Avg: ${(userHolding.avgPrice / 100).toFixed(2)}
                                 </div>
                             </div>
@@ -262,102 +532,44 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
                                 <div className="text-white font-medium">
                                     ${((userHolding.qty * stonk.currentPrice) / 100).toFixed(2)}
                                 </div>
-                                <div
-                                    className={`text-sm ${stonk.currentPrice >= userHolding.avgPrice
-                                        ? 'text-[#00D084]'
-                                        : 'text-[#FF4444]'
-                                        }`}
-                                >
+                                <div className={`text-xs ${stonk.currentPrice >= userHolding.avgPrice
+                                    ? 'text-[#00D084]'
+                                    : 'text-[#FF4444]'
+                                    }`}>
                                     {stonk.currentPrice >= userHolding.avgPrice ? '+' : ''}
                                     ${(((stonk.currentPrice - userHolding.avgPrice) * userHolding.qty) / 100).toFixed(2)}
                                 </div>
                             </div>
                         </div>
-                        {/* Exit Position Button */}
-                        <button
-                            onClick={() => {
-                                setAction('sell');
-                                // Calculate total value in dollars, truncating to 2 decimals (floor)
-                                // to avoid rounding up and exceeding actual share balance.
-                                const val = (userHolding.qty * stonk.currentPrice) / 100;
-                                const safeVal = Math.floor(val * 100) / 100;
-                                setAmount(safeVal.toFixed(2));
-                            }}
-                            className="mt-3 w-full py-2 bg-[#2d1a1a] border border-[#FF4444] text-[#FF4444] rounded text-sm hover:bg-[#3d2a2a] transition-colors"
-                        >
-                            Exit Position (Sell All)
-                        </button>
                     </div>
                 )}
             </div>
 
-            {/* Trading Controls */}
-            <div className="px-4 py-4 border-t border-[#2d2d2d] bg-black">
-                {/* Action Tabs */}
-                <div className="flex gap-2 mb-4">
-                    <button
-                        onClick={() => setAction('buy')}
-                        className={`flex-1 py-2 rounded-lg font-medium transition-colors ${action === 'buy'
-                            ? 'bg-[#FF4500] text-white'
-                            : 'bg-[#1A1A1B] text-gray-400'
-                            }`}
-                    >
-                        Buy
-                    </button>
-                    <button
-                        onClick={() => setAction('sell')}
-                        className={`flex-1 py-2 rounded-lg font-medium transition-colors ${action === 'sell'
-                            ? 'bg-[#1A1A1B] text-[#FF4444] border border-[#FF4444]'
-                            : 'bg-[#1A1A1B] text-gray-400'
-                            }`}
-                    >
-                        Sell
-                    </button>
-                </div>
-
-                {/* Amount Input */}
-                <div className="mb-4">
-                    <label className="block text-gray-400 text-sm mb-2">
-                        {action === 'buy' ? 'Amount ($)' : 'Amount ($ to sell)'}
-                    </label>
-                    <input
-                        type="number"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        placeholder="100.00"
-                        className="w-full bg-[#1A1A1B] text-white rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#FF4500]"
-                        disabled={trading}
-                    />
-                    {/* Est. Shares Helper */}
-                    {amount && !isNaN(parseFloat(amount)) && (
-                        <div className="text-xs text-gray-500 mt-2 text-right">
-                            {action === 'buy'
-                                ? `Est. Shares: ~${(parseFloat(amount) / (stonk.currentPrice / 100)).toFixed(2)}`
-                                : `Est. Shares to Sell: ~${(parseFloat(amount) / (stonk.currentPrice / 100)).toFixed(2)}`
-                            }
-                        </div>
-                    )}
-                </div>
-
-                {/* Trade Message */}
-                {tradeMessage && (
-                    <div className="mb-4 text-sm text-center">
-                        {tradeMessage}
-                    </div>
-                )}
-
-                {/* Submit Button */}
+            {/* Bottom Buy/Sell Buttons */}
+            <div className="px-4 py-4 flex gap-3 bg-[#0f0f0f] border-t border-[#222]">
                 <button
-                    onClick={handleTrade}
-                    disabled={trading || !amount}
-                    className={`w-full py-3 rounded-lg font-medium transition-colors ${action === 'buy'
-                        ? 'bg-[#FF4500] text-white hover:bg-[#ff5722] disabled:opacity-50'
-                        : 'bg-[#1A1A1B] text-[#FF4444] border border-[#FF4444] hover:bg-[#252525] disabled:opacity-50'
-                        }`}
+                    onClick={() => openModal('sell')}
+                    className="flex-1 py-4 rounded-lg font-bold text-white border-2 border-white hover:bg-white/10 transition-colors"
                 >
-                    {trading ? 'Processing...' : action === 'buy' ? 'Buy' : 'Sell'}
+                    SELL
+                </button>
+                <button
+                    onClick={() => openModal('buy')}
+                    className="flex-1 py-4 rounded-lg font-bold text-white bg-[#00D084] hover:bg-[#00b874] transition-colors"
+                >
+                    BUY
                 </button>
             </div>
+
+            {/* Trade Modal */}
+            <TradeModal
+                isOpen={modalOpen}
+                action={modalAction}
+                stonk={stonk}
+                userHolding={userHolding}
+                onClose={() => setModalOpen(false)}
+                onTrade={handleTrade}
+            />
         </div>
     );
 };

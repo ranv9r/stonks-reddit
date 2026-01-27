@@ -64,14 +64,14 @@ export const LeaderboardView = () => {
     if (!leaderboard) return null;
 
     return (
-        <div className="p-4 sm:p-6 fade-in max-w-3xl mx-auto">
+        <div className="px-4 py-4 sm:px-6 sm:py-6 fade-in max-w-3xl mx-auto">
             {/* Header */}
-            <div className="mb-8 text-center">
-                <div className="flex items-center justify-center gap-3 mb-3">
-                    <TrophyIcon size={32} className="text-[#FF4500]" />
-                    <h2 className="text-3xl font-extrabold text-white">Top Traders</h2>
+            <div className="mb-6 text-center">
+                <div className="flex items-center justify-center gap-3 mb-2">
+                    <TrophyIcon size={28} className="text-[#FF4500]" />
+                    <h2 className="text-[25px] font-extrabold text-white">Top Traders</h2>
                 </div>
-                <p className="text-sm text-[#a1a1aa]">
+                <p className="text-[13px] text-[#a1a1aa]">
                     {leaderboard.totalParticipants} total participants
                 </p>
             </div>
@@ -91,7 +91,7 @@ export const LeaderboardView = () => {
                         <div
                             key={entry.userId}
                             className={`
-                                relative overflow-hidden rounded-xl p-5 transition-all duration-200
+                                relative overflow-hidden rounded-xl p-4 transition-all duration-200
                                 ${isTopThree
                                     ? `bg-gradient-to-br ${colors?.bg} border-2 ${colors?.border} ${colors?.glow}`
                                     : 'card border-2 border-transparent hover:border-[#27272a]'
@@ -99,10 +99,10 @@ export const LeaderboardView = () => {
                                 ${entry.isCurrentUser && !isTopThree ? 'border-[#FF4500]! shadow-lg' : ''}
                             `}
                         >
-                            <div className="flex items-center gap-5">
+                            <div className="flex items-center gap-4">
                                 {/* Rank Badge */}
                                 <div className={`
-                                    flex items-center justify-center w-14 h-14 rounded-full font-black text-2xl shrink-0
+                                    flex items-center justify-center w-10 h-10 rounded-full font-bold text-[15px] shrink-0
                                     ${isTopThree
                                         ? `${colors?.text} bg-gradient-to-br ${colors?.bg} border-2 ${colors?.border}`
                                         : 'text-[#71717a] bg-[#18181b] border-2 border-[#27272a]'
@@ -116,12 +116,12 @@ export const LeaderboardView = () => {
 
                                 {/* User Info */}
                                 <div className="flex-1 min-w-0">
-                                    <div className={`font-bold text-lg truncate ${isTopThree ? 'text-white' : 'text-white'
+                                    <div className={`font-bold text-[15px] ${isTopThree ? 'text-white' : 'text-white'
                                         }`}>
                                         {entry.username}
                                     </div>
                                     {entry.isCurrentUser && (
-                                        <span className="inline-block mt-1 text-xs text-[#FF4500] bg-[#FF4500]/10 px-2 py-0.5 rounded-full font-semibold">
+                                        <span className="inline-block mt-1 text-[11px] text-[#FF4500] bg-[#FF4500]/10 px-2 py-0.5 rounded-full font-semibold">
                                             You
                                         </span>
                                     )}
@@ -129,7 +129,7 @@ export const LeaderboardView = () => {
 
                                 {/* Net Worth */}
                                 <div className="text-right">
-                                    <div className={`font-bold text-xl ${isTopThree ? 'text-white' : 'text-white'
+                                    <div className={`font-bold text-[18px] ${isTopThree ? 'text-white' : 'text-white'
                                         }`}>
                                         ${(entry.netWorth / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </div>
@@ -143,31 +143,31 @@ export const LeaderboardView = () => {
             {/* User's Rank (only if NOT in top 10) */}
             {leaderboard.userRank && leaderboard.userRank.rank > 10 && (
                 <>
-                    <div className="my-6 text-center">
-                        <div className="inline-block px-4 py-1 bg-[#18181b] rounded-full text-[#71717a] text-sm">
+                    <div className="my-5 text-center">
+                        <div className="inline-block px-4 py-1 bg-[#18181b] rounded-full text-[#71717a] text-[13px]">
                             ···
                         </div>
                     </div>
-                    <div className="card p-5 border-2 border-[#FF4500] shadow-lg rounded-xl">
-                        <div className="flex items-center gap-5">
+                    <div className="card p-4 border-2 border-[#FF4500] shadow-lg rounded-xl">
+                        <div className="flex items-center gap-4">
                             {/* Rank Badge */}
-                            <div className="flex items-center justify-center w-14 h-14 rounded-full font-black text-2xl shrink-0 text-[#FF4500] bg-[#FF4500]/10 border-2 border-[#FF4500]">
+                            <div className="flex items-center justify-center w-10 h-10 rounded-full font-bold text-[15px] shrink-0 text-[#FF4500] bg-[#FF4500]/10 border-2 border-[#FF4500]">
                                 #{leaderboard.userRank.rank}
                             </div>
 
                             {/* User Info */}
                             <div className="flex-1 min-w-0">
-                                <div className="font-bold text-lg text-white">
+                                <div className="font-bold text-[15px] text-white">
                                     Your Rank
                                 </div>
-                                <span className="inline-block mt-1 text-xs text-[#FF4500] bg-[#FF4500]/10 px-2 py-0.5 rounded-full font-semibold">
+                                <span className="inline-block mt-1 text-[11px] text-[#FF4500] bg-[#FF4500]/10 px-2 py-0.5 rounded-full font-semibold">
                                     You
                                 </span>
                             </div>
 
                             {/* Net Worth */}
                             <div className="text-right">
-                                <div className="font-bold text-xl text-white">
+                                <div className="font-bold text-[18px] text-white">
                                     ${(leaderboard.userRank.netWorth / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </div>
                             </div>
@@ -178,9 +178,9 @@ export const LeaderboardView = () => {
 
             {leaderboard.topTraders.length === 0 && (
                 <div className="text-center text-[#71717a] mt-12 p-8">
-                    <div className="text-4xl mb-3">🏆</div>
-                    <div className="text-lg font-medium">No traders yet</div>
-                    <div className="text-sm mt-2">Be the first to trade!</div>
+                    <div className="text-[35px] mb-3">🏆</div>
+                    <div className="text-[15px] font-medium">No traders yet</div>
+                    <div className="text-[13px] mt-2">Be the first to trade!</div>
                 </div>
             )}
         </div>
