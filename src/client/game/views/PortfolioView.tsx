@@ -76,7 +76,7 @@ export const PortfolioView = ({ onStonkClick }: PortfolioViewProps) => {
     const totalNetWorth = portfolio.walletBalance + portfolio.totalValue;
 
     return (
-        <div className="px-4 py-4 sm:px-6 sm:py-6 fade-in">
+        <div className="px-4 py-4 sm:px-6 sm:py-6 fade-in mx-2">
             {/* Summary Card */}
             {/* Summary Card */}
             <div className="glass-card-elevated p-5 mb-5 relative overflow-hidden flex items-center justify-between">

@@ -168,7 +168,7 @@ export const AdminView = () => {
     };
 
     return (
-        <div className="p-4 lg:p-6 space-y-6">
+        <div className="px-4 py-4 sm:px-6 sm:py-6 space-y-6 fade-in mx-2">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>

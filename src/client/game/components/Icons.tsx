@@ -259,4 +259,3 @@ export const RefreshIcon = ({ className = '', size = 24 }: IconProps) => (
         <path d="M16 21h5v-5" />
     </svg>
 );
-

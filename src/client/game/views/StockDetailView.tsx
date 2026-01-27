@@ -514,7 +514,7 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
     return (
         <div className="flex flex-col h-full bg-[#0f0f0f]">
             {/* Header */}
-            <div className="px-4 py-3 flex items-center gap-4">
+            <div className="px-4 py-3 flex items-center gap-4 mx-2">
                 <button
                     onClick={onBack}
                     className="p-2 hover:bg-[#1A1A1B] rounded-full transition-colors"
@@ -531,7 +531,7 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
             </div>
 
             {/* Price Display */}
-            <div className="px-4 py-2">
+            <div className="px-4 py-2 mx-2">
                 <div className="text-3xl font-bold text-white">
                     ${(stonk.currentPrice / 100).toFixed(2)}
                 </div>
@@ -542,7 +542,7 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
             </div>
 
             {/* Scrollable Content */}
-            <div className="flex-1 px-4 py-2 flex flex-col gap-3 overflow-auto">
+            <div className="flex-1 px-4 py-2 flex flex-col gap-3 overflow-auto mx-2">
                 {/* Interactive Chart - 1.8x height (h-64 instead of h-36) */}
                 <div className="bg-[#1A1A1B] rounded-xl h-64 p-3">
                     <InteractiveChart data={priceHistory} />
@@ -602,7 +602,7 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
             </div>
 
             {/* Fixed Footer Buy/Sell Buttons */}
-            <div className="px-4 py-4 flex gap-3 bg-[#0f0f0f] border-t border-[#222] mt-auto">
+            <div className="px-4 py-4 flex gap-3 bg-[#0f0f0f] border-t border-[#222] mt-auto mx-2">
                 <button
                     onClick={() => openModal('sell')}
                     className="flex-1 py-4 rounded-xl font-bold text-white border-2 border-white hover:bg-white/10 transition-colors"

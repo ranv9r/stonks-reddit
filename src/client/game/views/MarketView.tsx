@@ -39,9 +39,10 @@ interface MarketTickPayload {
 
 interface MarketViewProps {
     onStonkClick: (stonkId: string) => void;
+    subredditName?: string;
 }
 
-export const MarketView = ({ onStonkClick }: MarketViewProps) => {
+export const MarketView = ({ onStonkClick, subredditName }: MarketViewProps) => {
     const [marketData, setMarketData] = useState<MarketData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -136,7 +137,7 @@ export const MarketView = ({ onStonkClick }: MarketViewProps) => {
     if (!marketData) return null;
 
     return (
-        <div className="px-4 py-4 sm:px-6 sm:py-6 fade-in">
+        <div className="px-4 py-4 sm:px-6 sm:py-6 fade-in mx-2">
             {/* Wallet Balance Card */}
             <div className="glass-card-elevated p-5 mb-5 relative overflow-hidden text-center">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#FF4500] to-transparent opacity-10 blur-2xl rounded-full"></div>
@@ -152,8 +153,11 @@ export const MarketView = ({ onStonkClick }: MarketViewProps) => {
             </div>
 
             {/* Stonks List Header */}
-            <div className="px-1 pb-3 text-[11px] text-[#71717a] font-semibold uppercase tracking-wider">
-                Available Assets
+            <div className="px-1 pb-3 flex items-center justify-between text-[11px] text-[#71717a] font-semibold tracking-wider">
+                <span className="uppercase">Available Assets</span>
+                {subredditName && (
+                    <span className="text-[#FF4500]/80">r/{subredditName}</span>
+                )}
             </div>
 
             {/* Stonks List */}

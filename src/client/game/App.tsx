@@ -65,11 +65,11 @@ export const App = () => {
   return (
     <div className="flex flex-col h-screen bg-[#0f0f0f] max-w-[100vw]">
       {/* Header */}
-      <header className="flex items-center justify-center px-4 lg:px-6 py-4 lg:py-5 border-b border-[#27272a] safe-area-top bg-[#0f0f0f] relative">
+      <header className="flex items-center justify-center px-4 lg:px-6 py-4 lg:py-5 border-b border-[#27272a] safe-area-top bg-[#0f0f0f] relative mx-2">
         <div className="flex items-center gap-2 justify-center">
           <LogoChartIcon size={28} className="text-[#FF4500]" />
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gradient">
-            r/{subredditName} Stonks
+            Stonks
           </h1>
         </div>
         <div className="absolute right-4 lg:right-6 hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#18181b] rounded-full border border-[#27272a]">
@@ -83,7 +83,7 @@ export const App = () => {
         <div className="min-h-full game-content-wrapper">
           {currentView === 'market' && (
             <div className="view-enter">
-              <MarketView onStonkClick={handleStonkClick} />
+              <MarketView onStonkClick={handleStonkClick} subredditName={subredditName} />
             </div>
           )}
           {currentView === 'portfolio' && (
@@ -125,9 +125,7 @@ export const App = () => {
               }`}>
               Market
             </div>
-            {currentView === 'market' && (
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-[#FF4500] rounded-t-full"></div>
-            )}
+
           </button>
           <button
             onClick={() => setCurrentView('portfolio')}
@@ -142,9 +140,7 @@ export const App = () => {
               }`}>
               Portfolio
             </div>
-            {currentView === 'portfolio' && (
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-[#FF4500] rounded-t-full"></div>
-            )}
+
           </button>
           <button
             onClick={() => setCurrentView('leaderboard')}
@@ -159,15 +155,13 @@ export const App = () => {
               }`}>
               Leaderboard
             </div>
-            {currentView === 'leaderboard' && (
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-[#FF4500] rounded-t-full"></div>
-            )}
+
           </button>
           {/* Admin Tab - Only visible for moderators */}
           {isAdmin && (
             <button
               onClick={() => setCurrentView('admin')}
-              className={`flex-1 flex flex-col items-center gap-1.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'admin'
+              className={`relative flex-1 flex flex-col items-center gap-1.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'admin'
                 ? 'text-[#FF4500]'
                 : 'text-[#71717a] hover:text-[#a1a1aa]'
                 }`}
@@ -178,9 +172,7 @@ export const App = () => {
                 }`}>
                 Admin
               </div>
-              {currentView === 'admin' && (
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-[#FF4500] rounded-t-full"></div>
-              )}
+
             </button>
           )}
         </nav>
