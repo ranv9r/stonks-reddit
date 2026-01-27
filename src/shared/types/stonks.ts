@@ -16,6 +16,7 @@ export interface StonkState {
     name: string;
     ticker: string;
     icon: string;
+    imageUrl?: string;  // i.redd.it URL for stock logo
 
     // AMM Reserve State
     xVirt: number;      // Virtual cash reserve (base liquidity)
@@ -48,6 +49,7 @@ export interface StonkDisplay {
     name: string;
     ticker: string;
     icon: string;
+    imageUrl?: string;
     currentPrice: number;
     priceChange: number;         // Absolute change
     priceChangePercent: number;  // Percentage change
@@ -97,6 +99,7 @@ export interface HoldingDisplay {
     stonkId: string;
     ticker: string;
     icon: string;
+    imageUrl?: string;
     quantity: number;
     avgBuyPrice: number;
     currentPrice: number;

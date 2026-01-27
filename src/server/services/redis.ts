@@ -42,7 +42,8 @@ export async function createStonk(
     basePrice: number = DEFAULT_BASE_PRICE,
     xVirt: number = DEFAULT_X_VIRT,
     yVirt: number = DEFAULT_Y_VIRT,
-    createdBy: string
+    createdBy: string,
+    imageUrl?: string
 ): Promise<StonkState> {
     const now = Date.now();
 
@@ -54,6 +55,7 @@ export async function createStonk(
         name,
         ticker,
         icon,
+        ...(imageUrl ? { imageUrl } : {}),
         xVirt,
         yVirt,
         xReal: 0,
@@ -67,7 +69,7 @@ export async function createStonk(
     };
 
     // Store stonk state as hash
-    await redis.hSet(REDIS_KEYS.stonkState(id), {
+    const hashData: Record<string, string> = {
         id,
         name,
         ticker,
@@ -82,7 +84,11 @@ export async function createStonk(
         createdBy,
         createdAt: String(now),
         active: 'true',
-    });
+    };
+    if (imageUrl) {
+        hashData.imageUrl = imageUrl;
+    }
+    await redis.hSet(REDIS_KEYS.stonkState(id), hashData);
 
     // Add to stonks list (using sorted set with score 0 since Devvit only supports sorted sets)
     await redis.zAdd(REDIS_KEYS.STONKS_LIST, { member: id, score: 0 });
@@ -103,7 +109,7 @@ export async function getStonk(stonkId: string): Promise<StonkState | null> {
     const data = await redis.hGetAll(REDIS_KEYS.stonkState(stonkId));
     if (!data || !data.id) return null;
 
-    return {
+    const result: StonkState = {
         id: data.id,
         name: data.name || '',
         ticker: data.ticker || '',
@@ -119,6 +125,10 @@ export async function getStonk(stonkId: string): Promise<StonkState | null> {
         createdAt: parseInt(data.createdAt || '0'),
         active: data.active === 'true',
     };
+    if (data.imageUrl) {
+        result.imageUrl = data.imageUrl;
+    }
+    return result;
 }
 
 /**
@@ -208,6 +218,45 @@ export async function getPriceHistory(
  */
 export async function deletePriceHistory(stonkId: string): Promise<void> {
     await redis.del(REDIS_KEYS.stonkHistory(stonkId));
+}
+
+/**
+ * Updates a stonk's editable fields (name, icon, imageUrl).
+ */
+export async function updateStonk(
+    stonkId: string,
+    updates: { name?: string; icon?: string; imageUrl?: string }
+): Promise<StonkState | null> {
+    const existing = await getStonk(stonkId);
+    if (!existing) return null;
+
+    const hashUpdates: Record<string, string> = {};
+    if (updates.name !== undefined) hashUpdates.name = updates.name;
+    if (updates.icon !== undefined) hashUpdates.icon = updates.icon;
+    if (updates.imageUrl !== undefined) hashUpdates.imageUrl = updates.imageUrl;
+
+    if (Object.keys(hashUpdates).length > 0) {
+        await redis.hSet(REDIS_KEYS.stonkState(stonkId), hashUpdates);
+    }
+
+    return await getStonk(stonkId);
+}
+
+/**
+ * Deletes a stonk entirely.
+ */
+export async function deleteStonk(stonkId: string): Promise<boolean> {
+    console.log(`[Redis] Force deleting stonk: ${stonkId}`);
+    
+    // Just force delete everything related to this ID
+    const removedCount = await redis.zRem(REDIS_KEYS.STONKS_LIST, [stonkId]);
+    console.log(`[Redis] zRem removed ${removedCount} from list for ${stonkId}`);
+    
+    await redis.del(REDIS_KEYS.stonkState(stonkId));
+    await redis.del(REDIS_KEYS.stonkBatch(stonkId));
+    await deletePriceHistory(stonkId);
+
+    return true;
 }
 
 // ============================================
