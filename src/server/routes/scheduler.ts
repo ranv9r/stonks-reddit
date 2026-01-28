@@ -59,6 +59,10 @@ router.post('/internal/scheduler/leaderboard-update', async (_req, res) => {
 
         await leaderboardService.updateLeaderboard();
 
+        // Broadcast leaderboard update notification to all clients
+        await realtime.send('leaderboard_update', { timestamp: Date.now() });
+        console.log(`[Leaderboard Update] Broadcast to leaderboard_update`);
+
         console.log(`[Leaderboard Update] Completed at ${new Date().toISOString()}`);
         res.status(200).json({ status: 'ok' });
     } catch (error) {

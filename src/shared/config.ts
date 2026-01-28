@@ -116,9 +116,6 @@ export const REDIS_KEYS = {
     /** Global game configuration */
     GAME_CONFIG: 'game:config',
 
-    /** Last tick timestamp */
-    LAST_TICK: 'game:lastTick',
-
     /** Set of all stonk IDs */
     STONKS_LIST: 'stonks:list',
 

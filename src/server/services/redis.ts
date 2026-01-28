@@ -247,11 +247,11 @@ export async function updateStonk(
  */
 export async function deleteStonk(stonkId: string): Promise<boolean> {
     console.log(`[Redis] Force deleting stonk: ${stonkId}`);
-    
+
     // Just force delete everything related to this ID
     const removedCount = await redis.zRem(REDIS_KEYS.STONKS_LIST, [stonkId]);
     console.log(`[Redis] zRem removed ${removedCount} from list for ${stonkId}`);
-    
+
     await redis.del(REDIS_KEYS.stonkState(stonkId));
     await redis.del(REDIS_KEYS.stonkBatch(stonkId));
     await deletePriceHistory(stonkId);
@@ -558,17 +558,4 @@ export async function setGameConfig(config: Partial<GameConfig>): Promise<void> 
     }
 }
 
-/**
- * Gets the last tick timestamp.
- */
-export async function getLastTick(): Promise<number> {
-    const tick = await redis.get(REDIS_KEYS.LAST_TICK);
-    return tick ? parseInt(tick) : 0;
-}
 
-/**
- * Sets the last tick timestamp.
- */
-export async function setLastTick(timestamp: number): Promise<void> {
-    await redis.set(REDIS_KEYS.LAST_TICK, String(timestamp));
-}

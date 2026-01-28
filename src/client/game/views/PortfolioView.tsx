@@ -1,8 +1,10 @@
 /**
  * Portfolio View - Displays user's holdings and P/L.
+ * Uses global_ticker realtime channel to update prices.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { connectRealtime } from '@devvit/web/client';
 import { TrendingUpIcon, TrendingDownIcon, CoinIcon } from '../components/Icons';
 
 interface Holding {
@@ -30,17 +32,89 @@ interface PortfolioViewProps {
     onStonkClick: (stonkId: string) => void;
 }
 
+interface RealtimeStonk {
+    id: string;
+    ticker: string;
+    icon: string;
+    currentPrice: number;
+    priceChangePercent: number;
+}
+
+interface MarketTickPayload {
+    stonks: RealtimeStonk[];
+    timestamp: number;
+}
+
 export const PortfolioView = ({ onStonkClick }: PortfolioViewProps) => {
     const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const connectionRef = useRef<{ disconnect: () => Promise<void> } | null>(null);
 
     useEffect(() => {
+        // Fetch portfolio once on mount
         fetchPortfolio();
-        const interval = setInterval(fetchPortfolio, 5000);
-        return () => clearInterval(interval);
+
+        // Subscribe to realtime updates for live price changes
+        const setupRealtime = async () => {
+            try {
+                connectionRef.current = await connectRealtime({
+                    channel: 'global_ticker',
+                    onMessage: (data: unknown) => {
+                        const payload = data as MarketTickPayload;
+                        // Update portfolio holdings with new prices
+                        setPortfolio(prev => {
+                            if (!prev) return prev;
+                            const updatedHoldings = prev.holdings.map(holding => {
+                                const update = payload.stonks.find(s => s.id === holding.stonkId);
+                                if (update) {
+                                    const newPrice = update.currentPrice;
+                                    const newValue = holding.quantity * newPrice;
+                                    const costBasis = holding.quantity * holding.avgBuyPrice;
+                                    const newProfitLoss = newValue - costBasis;
+                                    const newProfitLossPercent = costBasis > 0 ? (newProfitLoss / costBasis) * 100 : 0;
+                                    return {
+                                        ...holding,
+                                        currentPrice: newPrice,
+                                        currentValue: newValue,
+                                        profitLoss: newProfitLoss,
+                                        profitLossPercent: newProfitLossPercent,
+                                    };
+                                }
+                                return holding;
+                            });
+
+                            // Recalculate totals
+                            const newTotalValue = updatedHoldings.reduce((sum, h) => sum + h.currentValue, 0);
+                            const totalCostBasis = updatedHoldings.reduce((sum, h) => sum + (h.quantity * h.avgBuyPrice), 0);
+                            const newTotalProfitLoss = newTotalValue - totalCostBasis;
+                            const newTotalProfitLossPercent = totalCostBasis > 0 ? (newTotalProfitLoss / totalCostBasis) * 100 : 0;
+
+                            return {
+                                ...prev,
+                                totalValue: newTotalValue,
+                                totalProfitLoss: newTotalProfitLoss,
+                                totalProfitLossPercent: newTotalProfitLossPercent,
+                                holdings: updatedHoldings,
+                            };
+                        });
+                    },
+                    onConnect: () => console.log('[PortfolioView] Connected to global_ticker'),
+                    onDisconnect: () => console.log('[PortfolioView] Disconnected from global_ticker'),
+                });
+            } catch (err) {
+                console.error('[PortfolioView] Realtime connection failed:', err);
+            }
+        };
+
+        setupRealtime();
+
+        return () => {
+            connectionRef.current?.disconnect();
+        };
     }, []);
 
+    /** Fetches portfolio data once on mount. */
     const fetchPortfolio = async () => {
         try {
             const res = await fetch('/api/portfolio');
