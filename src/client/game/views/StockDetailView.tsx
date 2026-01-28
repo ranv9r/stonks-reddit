@@ -4,7 +4,9 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { connectRealtime } from '@devvit/web/client';
 import { ArrowLeftIcon } from '../components/Icons';
+import { useTierData, type TickerTier } from '../hooks/useTierData';
 
 interface PriceHistoryEntry {
     t: number; // timestamp
@@ -29,12 +31,6 @@ interface StonkState {
     createdBy: string;
     createdAt: number;
     active: boolean;
-}
-
-interface StockDetailData {
-    stonk: StonkState;
-    priceHistory: PriceHistoryEntry[];
-    userHolding: Holding | null;
 }
 
 interface StockDetailViewProps {
@@ -384,32 +380,68 @@ const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPosit
 };
 
 export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
-    const [data, setData] = useState<StockDetailData | null>(null);
+    const [stonk, setStonk] = useState<StonkState | null>(null);
+    const [userHolding, setUserHolding] = useState<Holding | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [modalOpen, setModalOpen] = useState(false);
     const [modalAction, setModalAction] = useState<'buy' | 'sell'>('buy');
     const [walletBalance, setWalletBalance] = useState(0);
+    const [currentPrice, setCurrentPrice] = useState(0);
 
+    // Realtime connection ref for cleanup
+    const realtimeRef = useRef<{ disconnect: () => Promise<void> } | null>(null);
+
+    // Use tiered data hook for price history
+    const { currentData: priceHistory, selectedTier, setSelectedTier, loading: tierLoading, tierLabels } = useTierData(stonkId, currentPrice);
+
+    // Fetch stonk details (without price history) and wallet once on mount
     useEffect(() => {
         fetchStockDetail();
         fetchWalletBalance();
-        const interval = setInterval(() => {
-            fetchStockDetail();
-            fetchWalletBalance();
-        }, 5000);
-        return () => clearInterval(interval);
+    }, [stonkId]);
+
+    // Subscribe to realtime updates for price using connectRealtime
+    useEffect(() => {
+        const setupRealtime = async () => {
+            try {
+                realtimeRef.current = await connectRealtime({
+                    channel: 'global_ticker',
+                    onMessage: (data: unknown) => {
+                        const payload = data as { stonks: { id: string; currentPrice: number }[]; timestamp: number };
+                        const updatedStonk = payload.stonks.find(s => s.id === stonkId);
+                        if (updatedStonk) {
+                            console.log(`[StockDetailView] Realtime price update: ${updatedStonk.currentPrice}`);
+                            setCurrentPrice(updatedStonk.currentPrice);
+                            setStonk(prev => prev ? { ...prev, currentPrice: updatedStonk.currentPrice } : prev);
+                        }
+                    },
+                    onConnect: () => console.log('[StockDetailView] Connected to global_ticker'),
+                    onDisconnect: () => console.log('[StockDetailView] Disconnected from global_ticker'),
+                });
+            } catch (err) {
+                console.error('[StockDetailView] Realtime connection failed:', err);
+            }
+        };
+
+        setupRealtime();
+
+        return () => {
+            realtimeRef.current?.disconnect();
+        };
     }, [stonkId]);
 
     /**
-     * Fetches stock detail data from the API.
+     * Fetches stock detail data (without price history - that comes from tier hook).
      */
     const fetchStockDetail = async () => {
         try {
             const res = await fetch(`/api/stonk/${stonkId}`);
             if (!res.ok) throw new Error('Failed to fetch stonk details');
             const stockData = await res.json();
-            setData(stockData);
+            setStonk(stockData.stonk);
+            setUserHolding(stockData.userHolding);
+            setCurrentPrice(stockData.stonk.currentPrice);
             setError(null);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unknown error');
@@ -485,7 +517,7 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
         );
     }
 
-    if (error || !data) {
+    if (error || !stonk) {
         return (
             <div className="p-4">
                 <button onClick={onBack} className="text-[#FF4500] mb-4">
@@ -496,7 +528,6 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
         );
     }
 
-    const { stonk, priceHistory, userHolding } = data;
     const firstPrice = priceHistory[0]?.p ?? stonk.currentPrice;
     const priceChange = priceHistory.length > 1
         ? stonk.currentPrice - firstPrice
@@ -543,9 +574,29 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
 
             {/* Scrollable Content */}
             <div className="flex-1 px-4 py-2 flex flex-col gap-3 overflow-auto">
-                {/* Interactive Chart - 1.8x height (h-64 instead of h-36) */}
+                {/* Interactive Chart - 1.8x height */}
                 <div className="bg-[#1A1A1B] rounded-xl h-64 p-3">
-                    <InteractiveChart data={priceHistory} />
+                    {tierLoading ? (
+                        <div className="flex items-center justify-center h-full text-gray-500">Loading chart...</div>
+                    ) : (
+                        <InteractiveChart data={priceHistory} />
+                    )}
+                </div>
+
+                {/* Tier Selector Buttons */}
+                <div className="flex gap-2 justify-center">
+                    {([1, 2, 3, 4, 5] as TickerTier[]).map((tier) => (
+                        <button
+                            key={tier}
+                            onClick={() => setSelectedTier(tier)}
+                            className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${selectedTier === tier
+                                ? 'bg-[#FF4500] text-white'
+                                : 'bg-[#1A1A1B] text-gray-400 hover:bg-[#2A2A2B]'
+                                }`}
+                        >
+                            {tierLabels[tier]}
+                        </button>
+                    ))}
                 </div>
 
                 {/* All-Time High/Low */}
