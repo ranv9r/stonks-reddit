@@ -136,4 +136,29 @@ export const REDIS_KEYS = {
 
     /** Leaderboard sorted set */
     LEADERBOARD: 'leaderboard',
+
+    /** Stonk tiered price history sorted sets - use with stonkId and tier (1-5) */
+    stonkHistoryTier: (stonkId: string, tier: number) => `stonk:${stonkId}:history${tier}`,
 } as const;
+
+// ============================================
+// STOCK TICKER TIER CONFIGURATION
+// Each tier stores 360 ticks at different intervals.
+// Higher tiers aggregate from lower tiers.
+// ============================================
+
+export const TICKER_TIERS = {
+    /** Tier 1: 5s intervals, 360 entries = 30 min coverage. Source: current price */
+    1: { interval: 5, entries: 360, ttl: 5, sourceTier: null, avgCount: null },
+    /** Tier 2: 30s intervals, 360 entries = 3 hour coverage. Source: avg 6 from tier 1 */
+    2: { interval: 30, entries: 360, ttl: 30, sourceTier: 1, avgCount: 6 },
+    /** Tier 3: 5m intervals, 360 entries = 30 hour coverage. Source: avg 10 from tier 2 */
+    3: { interval: 300, entries: 360, ttl: 300, sourceTier: 2, avgCount: 10 },
+    /** Tier 4: 30m intervals, 360 entries = 7.5 day coverage. Source: avg 6 from tier 3 */
+    4: { interval: 1800, entries: 360, ttl: 1800, sourceTier: 3, avgCount: 6 },
+    /** Tier 5: 2h intervals, 360 entries = 30 day coverage. Source: avg 4 from tier 4 */
+    5: { interval: 7200, entries: 360, ttl: 7200, sourceTier: 4, avgCount: 4 },
+} as const;
+
+export type TickerTier = keyof typeof TICKER_TIERS;
+

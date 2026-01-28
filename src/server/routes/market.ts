@@ -5,7 +5,7 @@
 
 import { Router } from 'express';
 import { context } from '@devvit/web/server';
-import { STARTING_BALANCE } from '../../shared/config';
+import { STARTING_BALANCE, TICKER_TIERS, type TickerTier } from '../../shared/config';
 import type {
     MarketResponse,
     StonkDetailResponse,
@@ -17,6 +17,7 @@ import type {
 import * as redisService from '../services/redis';
 import * as tradingEngine from '../services/tradingEngine';
 import * as leaderboardService from '../services/leaderboardService';
+import * as stockTickerService from '../services/stockTickerService';
 
 const router = Router();
 
@@ -118,6 +119,43 @@ router.get('/api/stonk/:id', async (req, res) => {
     } catch (error) {
         console.error('[Stonk Detail API] Error:', error);
         res.status(500).json({ error: 'Failed to fetch stonk details' });
+    }
+});
+
+/**
+ * GET /api/stonk/:id/:tier - Get stonk price history for specific tier.
+ * Tier 1-5 correspond to different time intervals (5s, 30s, 5m, 30m, 2h).
+ * Uses cache helper for efficient serving.
+ */
+router.get('/api/stonk/:id/:tier', async (req, res) => {
+    try {
+        const { id, tier } = req.params;
+        const tierNum = parseInt(tier) as TickerTier;
+
+        // Validate tier
+        if (![1, 2, 3, 4, 5].includes(tierNum)) {
+            res.status(400).json({ error: 'Invalid tier. Must be 1-5.' });
+            return;
+        }
+
+        const stonk = await redisService.getStonk(id);
+        if (!stonk) {
+            res.status(404).json({ error: 'Stonk not found' });
+            return;
+        }
+
+        // Get price history from cache/Redis
+        const priceHistory = await stockTickerService.getTierData(id, tierNum);
+
+        res.json({
+            stonkId: id,
+            tier: tierNum,
+            interval: TICKER_TIERS[tierNum].interval,
+            priceHistory,
+        });
+    } catch (error) {
+        console.error('[Stonk Tier API] Error:', error);
+        res.status(500).json({ error: 'Failed to fetch tier data' });
     }
 });
 

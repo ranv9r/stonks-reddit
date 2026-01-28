@@ -29,6 +29,22 @@
         "endpoint": "/internal/scheduler/price-tick",
         "cron": "*/5 * * * * *"
       },
+      "ticker-tier-2": {
+        "endpoint": "/internal/scheduler/ticker-tier-2",
+        "cron": "*/30 * * * * *"
+      },
+      "ticker-tier-3": {
+        "endpoint": "/internal/scheduler/ticker-tier-3",
+        "cron": "*/5 * * * *"
+      },
+      "ticker-tier-4": {
+        "endpoint": "/internal/scheduler/ticker-tier-4",
+        "cron": "*/30 * * * *"
+      },
+      "ticker-tier-5": {
+        "endpoint": "/internal/scheduler/ticker-tier-5",
+        "cron": "0 */2 * * *"
+      },
       "leaderboard-update": {
         "endpoint": "/internal/scheduler/leaderboard-update",
         "cron": "*/30 * * * *"
