@@ -13,8 +13,10 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
 
-    // Ref for auto-scrolling
-    const messagesEndRef = useRef<HTMLDivElement>(null);
+    // Ref for chat container to manage scrolling manually
+    const chatContainerRef = useRef<HTMLDivElement>(null);
+    // Ref to track previous messages length for smart scrolling
+    const prevMessagesLenRef = useRef(0);
     // Realtime connection ref
     const realtimeRef = useRef<{ disconnect: () => Promise<void> } | null>(null);
 
@@ -23,6 +25,7 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
         // Reset state when stonkId changes
         setMessages([]);
         setLoading(true);
+        prevMessagesLenRef.current = 0;
 
         const fetchMessages = async () => {
             try {
@@ -68,9 +71,22 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
         };
     }, [stonkId]);
 
-    // Auto-scroll to bottom on new messages
+    // Smart auto-scroll: scroll to bottom if initial load OR if user was already near bottom
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        const container = chatContainerRef.current;
+        if (!container) return;
+
+        const isInitialLoad = prevMessagesLenRef.current === 0 && messages.length > 0;
+
+        // Check if user is near bottom (within 100px)
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+
+        if (isInitialLoad || isNearBottom) {
+            // Use scrollTop to avoid scrolling the entire page
+            container.scrollTop = container.scrollHeight;
+        }
+
+        prevMessagesLenRef.current = messages.length;
     }, [messages]);
 
     const handleSend = async (e: React.FormEvent) => {
@@ -93,6 +109,11 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
             // we'll just wait for the socket or the response.
             // Actually, let's just clear input and wait. Realtime is fast enough.
             setNewMessage('');
+
+            // Force scroll to bottom when user sends a message
+            if (chatContainerRef.current) {
+                chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+            }
         } catch (error) {
             console.error('Error sending message:', error);
             alert('Failed to send message. Are you logged in?');
@@ -117,7 +138,10 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
             </div>
 
             {/* Messages List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+            <div
+                ref={chatContainerRef}
+                className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0"
+            >
                 {loading && messages.length === 0 ? (
                     <div className="flex justify-center items-center h-full text-slate-500 text-sm">
                         Loading comments...
@@ -143,7 +167,6 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
                         </div>
                     ))
                 )}
-                <div ref={messagesEndRef} />
             </div>
 
             {/* Input Area */}
