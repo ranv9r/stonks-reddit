@@ -1,8 +1,10 @@
 /**
  * Leaderboard View - Displays top traders ranked by net worth.
+ * Fetches on mount, then listens for leaderboard_update realtime notifications.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { connectRealtime } from '@devvit/web/client';
 import { TrophyIcon } from './components/Icons';
 
 interface LeaderboardEntry {
@@ -23,14 +25,38 @@ export const LeaderboardView = () => {
     const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const connectionRef = useRef<{ disconnect: () => Promise<void> } | null>(null);
 
     useEffect(() => {
+        // Fetch leaderboard once on mount
         fetchLeaderboard();
-        // Update every 30 seconds
-        const interval = setInterval(fetchLeaderboard, 30000);
-        return () => clearInterval(interval);
+
+        // Subscribe to realtime updates for leaderboard refresh notifications
+        const setupRealtime = async () => {
+            try {
+                connectionRef.current = await connectRealtime({
+                    channel: 'leaderboard_update',
+                    onMessage: () => {
+                        // When server broadcasts that leaderboard was updated, re-fetch
+                        console.log('[LeaderboardView] Received update notification, refreshing...');
+                        fetchLeaderboard();
+                    },
+                    onConnect: () => console.log('[LeaderboardView] Connected to leaderboard_update'),
+                    onDisconnect: () => console.log('[LeaderboardView] Disconnected from leaderboard_update'),
+                });
+            } catch (err) {
+                console.error('[LeaderboardView] Realtime connection failed:', err);
+            }
+        };
+
+        setupRealtime();
+
+        return () => {
+            connectionRef.current?.disconnect();
+        };
     }, []);
 
+    /** Fetches leaderboard data from the API. */
     const fetchLeaderboard = async () => {
         try {
             const res = await fetch('/api/leaderboard');

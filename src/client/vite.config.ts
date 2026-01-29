@@ -1,11 +1,17 @@
 import { defineConfig } from 'vite';
 import tailwind from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), tailwind()],
   logLevel: 'warn',
+  resolve: {
+    alias: {
+      '@protobufjs/inquire': path.resolve(__dirname, '../shared/inquire_stub.js'),
+    },
+  },
   build: {
     outDir: '../../dist/client',
     emptyOutDir: true,
@@ -20,6 +26,10 @@ export default defineConfig({
         chunkFileNames: '[name].js',
         assetFileNames: '[name][extname]',
         sourcemapFileNames: '[name].js.map',
+      },
+      onwarn(warning, warn) {
+        if (warning.code === 'EVAL') return;
+        warn(warning);
       },
     },
   },

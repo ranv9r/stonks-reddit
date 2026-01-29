@@ -20,6 +20,10 @@ export default defineConfig({
         entryFileNames: 'index.cjs',
         inlineDynamicImports: true,
       },
+      onwarn(warning, warn) {
+        if (warning.code === 'EVAL') return;
+        warn(warning);
+      },
     },
   },
 });

@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "pump-o-dump",
+  "name": "pump-o-dump2",
   "post": {
     "dir": "dist/client",
     "entrypoints": {
@@ -21,13 +21,30 @@
     "dir": "assets"
   },
   "permissions": {
-    "redis": true
+    "redis": true,
+    "media": true
   },
   "scheduler": {
     "tasks": {
       "price-tick": {
         "endpoint": "/internal/scheduler/price-tick",
         "cron": "*/5 * * * * *"
+      },
+      "ticker-tier-2": {
+        "endpoint": "/internal/scheduler/ticker-tier-2",
+        "cron": "*/30 * * * * *"
+      },
+      "ticker-tier-3": {
+        "endpoint": "/internal/scheduler/ticker-tier-3",
+        "cron": "*/5 * * * *"
+      },
+      "ticker-tier-4": {
+        "endpoint": "/internal/scheduler/ticker-tier-4",
+        "cron": "*/30 * * * *"
+      },
+      "ticker-tier-5": {
+        "endpoint": "/internal/scheduler/ticker-tier-5",
+        "cron": "0 */2 * * *"
       },
       "leaderboard-update": {
         "endpoint": "/internal/scheduler/leaderboard-update",
@@ -85,6 +102,6 @@
     "onAppInstall": "/internal/triggers/on-app-install"
   },
   "dev": {
-    "subreddit": "pump_o_dump_dev2"
+    "subreddit": "pump_o_dump2_dev"
   }
 }

@@ -65,7 +65,7 @@ export async function executeBuy(
 ): Promise<{ success: boolean; message: string; actualAmount?: number }> {
     // Check cooldown limit first
     const limitCheck = await redisService.checkSpendLimit(userId, stonkId, amount);
-    
+
     let actualAmount = amount;
     if (!limitCheck.allowed) {
         if (limitCheck.cappedAmount && limitCheck.cappedAmount > 0) {
@@ -136,7 +136,7 @@ export async function executeBuy(
         // Calculate new weighted moving average price
         const totalCost = (existingHolding.qty * existingHolding.avgPrice) + (stockDistributed * avgBuyPrice);
         const totalQty = existingHolding.qty + stockDistributed;
-        
+
         updatedPortfolio[stonkId] = {
             qty: totalQty,
             avgPrice: totalCost / totalQty
@@ -148,7 +148,7 @@ export async function executeBuy(
             avgPrice: avgBuyPrice
         };
     }
-    
+
     await redisService.updatePortfolio(userId, updatedPortfolio);
 
     // 5. Record spending for cooldown
@@ -202,12 +202,12 @@ export async function executeSell(
     // Calculate estimated sell value for cooldown check
     // Note: Actual value might differ slightly after execution due to price impact
     const estimatedValue = Math.round(quantity * stonk.currentPrice);
-    
+
     // Check cooldown limit (sell limits based on estimated value)
     const limitCheck = await redisService.checkSpendLimit(userId, stonkId, estimatedValue);
-    
+
     let actualQuantity = quantity;
-    
+
     if (!limitCheck.allowed) {
         if (limitCheck.cappedAmount && limitCheck.cappedAmount > 0) {
             // Partial order - cap based on allowed value
@@ -228,7 +228,7 @@ export async function executeSell(
     }
 
     if (actualQuantity <= 0) {
-         return {
+        return {
             success: false,
             message: `Sell amount too small.`,
         };
@@ -245,12 +245,12 @@ export async function executeSell(
     };
 
     // Calculate actual shares to sell (rounding/types check if needed, but number is fine)
-    
+
     const { newState, cashPaidOut, avgSellPrice } = ammEngine.executeSellBatch(
         currentState,
         actualQuantity
     );
-    
+
     const actualValue = cashPaidOut;
 
     // 2. Update Stonk State in Redis
@@ -283,8 +283,8 @@ export async function executeSell(
     await redisService.recordSpending(userId, stonkId, Math.round(actualValue));
 
     const message = actualQuantity < quantity
-        ? `Partial sell for ${actualQuantity.toFixed(4)} shares ($${(actualValue/100).toFixed(2)}).`
-        : `Sold ${actualQuantity.toFixed(4)} shares for $${(actualValue/100).toFixed(2)}.`;
+        ? `Partial sell for ${actualQuantity.toFixed(4)} shares ($${(actualValue / 100).toFixed(2)}).`
+        : `Sold ${actualQuantity.toFixed(4)} shares for $${(actualValue / 100).toFixed(2)}.`;
 
     return {
         success: true,
@@ -306,7 +306,6 @@ export async function executeSell(
 export async function resolveBatches(): Promise<void> {
     // Disabled. Trades are now instant.
     // We can clear any stuck batches if we wanted, but ignoring is fine.
-    await redisService.setLastTick(Date.now());
 }
 
 // ============================================
@@ -344,7 +343,7 @@ export async function calculatePortfolioValue(
 
         const qty = holding.qty || 0;
         const avgPrice = holding.avgPrice || 0;
-        
+
         const currentValue = qty * stonk.currentPrice;
         const costBasis = qty * avgPrice;
         const profitLoss = currentValue - costBasis;

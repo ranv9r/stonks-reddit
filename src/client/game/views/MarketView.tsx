@@ -137,7 +137,7 @@ export const MarketView = ({ onStonkClick, subredditName }: MarketViewProps) => 
     if (!marketData) return null;
 
     return (
-        <div className="px-4 py-4 sm:px-6 sm:py-6 fade-in mx-2">
+        <div className="px-6 py-4 sm:px-8 sm:py-6 fade-in">
             {/* Wallet Balance Card */}
             <div className="glass-card-elevated p-5 mb-5 relative overflow-hidden text-center">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#FF4500] to-transparent opacity-10 blur-2xl rounded-full"></div>
