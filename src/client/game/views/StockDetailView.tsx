@@ -118,18 +118,37 @@ const InteractiveChart = ({ data }: { data: PriceHistoryEntry[] }) => {
     const handleMouseLeave = () => setTooltip(null);
     const handleTouchEnd = () => setTooltip(null);
 
+    const startTime = new Date(data[0]!.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const endTime = new Date(data[data.length - 1]!.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
     return (
         <div
             ref={containerRef}
-            className="relative w-full h-full cursor-crosshair"
+            className="relative w-full h-full cursor-crosshair group"
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
         >
+            {/* Price Labels (Y-axis) */}
+            <div className="absolute top-0 right-0 text-[10px] text-gray-500 font-mono pointer-events-none transition-opacity duration-200 group-hover:opacity-0">
+                ${(max / 100).toFixed(2)}
+            </div>
+            <div className="absolute bottom-6 right-0 text-[10px] text-gray-500 font-mono pointer-events-none transition-opacity duration-200 group-hover:opacity-0">
+                ${(min / 100).toFixed(2)}
+            </div>
+
+            {/* Time Labels (X-axis) */}
+            <div className="absolute bottom-0 left-0 text-[10px] text-gray-500 font-mono pointer-events-none">
+                {startTime}
+            </div>
+            <div className="absolute bottom-0 right-0 text-[10px] text-gray-500 font-mono pointer-events-none">
+                {endTime}
+            </div>
+
             <svg
                 viewBox={`0 0 ${width} ${height}`}
-                className="w-full h-full overflow-visible"
+                className="w-full h-full overflow-visible pb-4 pr-6" // Added padding for labels
                 preserveAspectRatio="none"
             >
                 <defs>
@@ -162,13 +181,14 @@ const InteractiveChart = ({ data }: { data: PriceHistoryEntry[] }) => {
                 <>
                     {/* Vertical line */}
                     <div
-                        className="absolute top-0 bottom-0 w-px bg-[#FF4500] opacity-40 pointer-events-none"
+                        className="absolute top-0 bottom-4 w-px bg-[#FF4500] opacity-40 pointer-events-none"
                         style={{ left: `${tooltip.x}%` }}
                     />
                     {/* Small circle dot */}
                     <div
                         className="absolute w-2 h-2 rounded-full bg-[#FF4500] opacity-80 pointer-events-none transform -translate-x-1/2 -translate-y-1/2"
-                        style={{ left: `${tooltip.x}%`, top: `${tooltip.y}%` }}
+                        // Adjust Y to account for bottom padding in SVG if needed, but relative % should work if container matches
+                        style={{ left: `${tooltip.x}%`, top: `${(tooltip.y * 0.9)}%` }} // Approximate adjustment for padding
                     />
                 </>
             )}
@@ -179,8 +199,8 @@ const InteractiveChart = ({ data }: { data: PriceHistoryEntry[] }) => {
                     className="absolute pointer-events-none bg-[#1f1f1f] border border-[#333] rounded-lg px-3 py-2 shadow-lg z-10 transform -translate-x-1/2"
                     style={{
                         left: `${tooltip.x}%`,
-                        top: `${tooltip.y}%`,
-                        marginTop: '-50px'
+                        top: `0%`,
+                        marginTop: '-10px'
                     }}
                 >
                     <div className="text-white font-bold text-sm">
@@ -599,27 +619,35 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
                     ))}
                 </div>
 
-                {/* All-Time High/Low */}
-                <div className="bg-[#1A1A1B] rounded-xl p-3">
-                    <div className="text-gray-400 text-xs mb-2">All-Time Performance</div>
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <div className="text-gray-500 text-[10px] mb-0.5">Low</div>
-                            <div className="text-white font-mono text-sm">${(allTimeLow / 100).toFixed(2)}</div>
+                {/* All-Time Performance & Meme Card */}
+                <div className="flex flex-col gap-2">
+                    <div className="bg-[#1A1A1B] rounded-xl p-4 w-fit max-w-[70%] self-start border border-[#27272a] shadow-lg transform hover:scale-105 transition-transform">
+                        <div className="text-gray-400 text-[10px] uppercase tracking-wider mb-2 font-semibold">All Time Performance</div>
+
+                        <div className="flex items-end gap-3 mb-2">
+                            <div>
+                                <div className="text-gray-500 text-[10px] mb-0.5">ATH</div>
+                                <div className="text-white font-mono text-sm font-bold">${(allTimeHigh / 100).toFixed(2)}</div>
+                            </div>
+                            <div className="h-8 w-px bg-[#333]"></div>
+                            <div>
+                                <div className="text-gray-500 text-[10px] mb-0.5">ATL</div>
+                                <div className="text-white font-mono text-sm font-bold">${(allTimeLow / 100).toFixed(2)}</div>
+                            </div>
                         </div>
-                        <div className="flex-1 mx-3 h-1.5 bg-[#333] rounded-full overflow-hidden">
-                            <div
-                                className="h-full bg-gradient-to-r from-[#FF4444] via-[#FFaa00] to-[#00D084]"
-                                style={{
-                                    width: allTimeHigh > allTimeLow
-                                        ? `${((stonk.currentPrice - allTimeLow) / (allTimeHigh - allTimeLow)) * 100}%`
-                                        : '50%'
-                                }}
-                            />
-                        </div>
-                        <div className="text-right">
-                            <div className="text-gray-500 text-[10px] mb-0.5">High</div>
-                            <div className="text-white font-mono text-sm">${(allTimeHigh / 100).toFixed(2)}</div>
+
+                        {/* Meme Text */}
+                        <div className={`text-xs font-medium italic mt-1 ${stonk.currentPrice >= allTimeHigh * 0.95 ? 'text-[#00D084]' :
+                            stonk.currentPrice <= allTimeLow * 1.05 ? 'text-[#FF4444]' :
+                                'text-[#FFaa00]'
+                            }`}>
+                            "{
+                                stonk.currentPrice >= allTimeHigh * 0.95 ? "Moon soon? 🚀🌕" :
+                                    stonk.currentPrice <= allTimeLow * 1.05 ? "Buy the dip! 📉🧠" :
+                                        stonk.currentPrice >= allTimeHigh * 0.7 ? "Climbing the mountain 🧗" :
+                                            stonk.currentPrice <= allTimeLow * 1.3 ? "Oof, rough patch 🤕" :
+                                                "HODL tight 💎🙌"
+                            }"
                         </div>
                     </div>
                 </div>
