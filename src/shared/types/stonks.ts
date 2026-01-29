@@ -230,3 +230,22 @@ export interface StonkDetailResponse {
     userHolding: Holding | null;
     spendLimit: SpendLimitResult;  // User's remaining buy/sell allowance
 }
+
+// ============================================
+// CHAT TYPES
+// ============================================
+
+/** Chat message structure */
+export interface ChatMessage {
+    id: string;
+    userId: string;
+    username: string;
+    text: string;
+    time: number; // Unix timestamp
+}
+
+/** Chat API response */
+export interface ChatResponse {
+    messages: ChatMessage[];
+    nextCursor?: number; // For possible future pagination, currently using timestamp
+}

@@ -7,6 +7,7 @@ import { useState, useEffect, useRef } from 'react';
 import { connectRealtime } from '@devvit/web/client';
 import { ArrowLeftIcon } from '../components/Icons';
 import { useTierData, type TickerTier } from '../hooks/useTierData';
+import { StockChat } from '../components/StockChat';
 
 interface PriceHistoryEntry {
     t: number; // timestamp
@@ -563,137 +564,150 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
     const allTimeLow = allPrices.length > 0 ? Math.min(...allPrices) : stonk.currentPrice;
 
     return (
-        <div className="flex flex-col h-full bg-[#0f0f0f]">
-            {/* Header */}
-            <div className="px-4 py-3 flex items-center gap-4">
-                <button
-                    onClick={onBack}
-                    className="p-2 hover:bg-[#1A1A1B] rounded-full transition-colors"
-                >
-                    <ArrowLeftIcon size={20} className="text-white" />
-                </button>
-                <div className="flex items-center gap-3 flex-1">
-                    <span className="text-3xl">{stonk.icon}</span>
-                    <div>
-                        <h2 className="text-xl font-bold text-white">{stonk.ticker}</h2>
-                        <p className="text-xs text-[#a1a1aa]">{stonk.name}</p>
+        <div className="flex flex-col h-full bg-[#0f0f0f] lg:flex-row lg:overflow-hidden">
+            {/* Main Content Area (Mobile: Full, Desktop: Left 2/3) */}
+            <div className="flex flex-col h-full lg:flex-1 lg:min-w-0 lg:border-r border-[#222]">
+                {/* Header */}
+                <div className="px-4 py-3 flex items-center gap-4">
+                    <button
+                        onClick={onBack}
+                        className="p-2 hover:bg-[#1A1A1B] rounded-full transition-colors"
+                    >
+                        <ArrowLeftIcon size={20} className="text-white" />
+                    </button>
+                    <div className="flex items-center gap-3 flex-1">
+                        <span className="text-3xl">{stonk.icon}</span>
+                        <div>
+                            <h2 className="text-xl font-bold text-white">{stonk.ticker}</h2>
+                            <p className="text-xs text-[#a1a1aa]">{stonk.name}</p>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Price Display */}
-            <div className="px-4 py-2">
-                <div className="text-3xl font-bold text-white">
-                    ${(stonk.currentPrice / 100).toFixed(2)}
+                {/* Price Display */}
+                <div className="px-4 py-2">
+                    <div className="text-3xl font-bold text-white">
+                        ${(stonk.currentPrice / 100).toFixed(2)}
+                    </div>
+                    <div className={`text-sm mt-1 flex items-center gap-1 ${priceChange >= 0 ? 'text-[#00D084]' : 'text-[#FF4444]'
+                        }`}>
+                        {priceChange >= 0 ? '▲' : '▼'} ${Math.abs(priceChange / 100).toFixed(2)} ({priceChangePercent >= 0 ? '+' : ''}{priceChangePercent.toFixed(2)}%)
+                    </div>
                 </div>
-                <div className={`text-sm mt-1 flex items-center gap-1 ${priceChange >= 0 ? 'text-[#00D084]' : 'text-[#FF4444]'
-                    }`}>
-                    {priceChange >= 0 ? '▲' : '▼'} ${Math.abs(priceChange / 100).toFixed(2)} ({priceChangePercent >= 0 ? '+' : ''}{priceChangePercent.toFixed(2)}%)
-                </div>
-            </div>
 
-            {/* Scrollable Content */}
-            <div className="flex-1 px-4 py-2 flex flex-col gap-3 overflow-auto">
-                {/* Interactive Chart - 1.8x height */}
-                <div className="bg-[#1A1A1B] rounded-xl h-64 p-3">
-                    {tierLoading ? (
-                        <div className="flex items-center justify-center h-full text-gray-500">Loading chart...</div>
-                    ) : (
-                        <InteractiveChart data={priceHistory} />
+                {/* Scrollable Content */}
+                <div className="flex-1 px-4 py-2 flex flex-col gap-3 overflow-auto">
+                    {/* Interactive Chart - 1.8x height */}
+                    <div className="bg-[#1A1A1B] rounded-xl h-64 p-3">
+                        {tierLoading ? (
+                            <div className="flex items-center justify-center h-full text-gray-500">Loading chart...</div>
+                        ) : (
+                            <InteractiveChart data={priceHistory} />
+                        )}
+                    </div>
+
+                    {/* Tier Selector Buttons */}
+                    <div className="flex gap-2 justify-center">
+                        {([1, 2, 3, 4, 5] as TickerTier[]).map((tier) => (
+                            <button
+                                key={tier}
+                                onClick={() => setSelectedTier(tier)}
+                                className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${selectedTier === tier
+                                    ? 'bg-[#FF4500] text-white'
+                                    : 'bg-[#1A1A1B] text-gray-400 hover:bg-[#2A2A2B]'
+                                    }`}
+                            >
+                                {tierLabels[tier]}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* All-Time Performance & Meme Card */}
+                    <div className="flex flex-col gap-2">
+                        <div className="bg-[#1A1A1B] rounded-xl p-4 w-fit max-w-[70%] self-start border border-[#27272a] shadow-lg transform hover:scale-105 transition-transform">
+                            <div className="text-gray-400 text-[10px] uppercase tracking-wider mb-2 font-semibold">All Time Performance</div>
+
+                            <div className="flex items-end gap-3 mb-2">
+                                <div>
+                                    <div className="text-gray-500 text-[10px] mb-0.5">ATH</div>
+                                    <div className="text-white font-mono text-sm font-bold">${(allTimeHigh / 100).toFixed(2)}</div>
+                                </div>
+                                <div className="h-8 w-px bg-[#333]"></div>
+                                <div>
+                                    <div className="text-gray-500 text-[10px] mb-0.5">ATL</div>
+                                    <div className="text-white font-mono text-sm font-bold">${(allTimeLow / 100).toFixed(2)}</div>
+                                </div>
+                            </div>
+
+                            {/* Meme Text */}
+                            <div className={`text-xs font-medium italic mt-1 ${stonk.currentPrice >= allTimeHigh * 0.95 ? 'text-[#00D084]' :
+                                stonk.currentPrice <= allTimeLow * 1.05 ? 'text-[#FF4444]' :
+                                    'text-[#FFaa00]'
+                                }`}>
+                                "{
+                                    stonk.currentPrice >= allTimeHigh * 0.95 ? "Moon soon? 🚀🌕" :
+                                        stonk.currentPrice <= allTimeLow * 1.05 ? "Buy the dip! 📉🧠" :
+                                            stonk.currentPrice >= allTimeHigh * 0.7 ? "Climbing the mountain 🧗" :
+                                                stonk.currentPrice <= allTimeLow * 1.3 ? "Oof, rough patch 🤕" :
+                                                    "HODL tight 💎🙌"
+                                }"
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* User Holding */}
+                    {userHolding && userHolding.qty > 0 && (
+                        <div className="bg-[#1A1A1B] rounded-xl p-3">
+                            <div className="text-gray-400 text-sm mb-3">Your Position</div>
+                            <div className="flex justify-between">
+                                <div>
+                                    <div className="text-white font-medium">{userHolding.qty.toFixed(4)} shares</div>
+                                    <div className="text-gray-500 text-xs">
+                                        Avg: ${(userHolding.avgPrice / 100).toFixed(2)}
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-white font-medium">
+                                        ${((userHolding.qty * stonk.currentPrice) / 100).toFixed(2)}
+                                    </div>
+                                    <div className={`text-xs ${stonk.currentPrice >= userHolding.avgPrice
+                                        ? 'text-[#00D084]'
+                                        : 'text-[#FF4444]'
+                                        }`}>
+                                        {stonk.currentPrice >= userHolding.avgPrice ? '+' : ''}
+                                        ${(((stonk.currentPrice - userHolding.avgPrice) * userHolding.qty) / 100).toFixed(2)}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     )}
-                </div>
 
-                {/* Tier Selector Buttons */}
-                <div className="flex gap-2 justify-center">
-                    {([1, 2, 3, 4, 5] as TickerTier[]).map((tier) => (
-                        <button
-                            key={tier}
-                            onClick={() => setSelectedTier(tier)}
-                            className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${selectedTier === tier
-                                ? 'bg-[#FF4500] text-white'
-                                : 'bg-[#1A1A1B] text-gray-400 hover:bg-[#2A2A2B]'
-                                }`}
-                        >
-                            {tierLabels[tier]}
-                        </button>
-                    ))}
-                </div>
-
-                {/* All-Time Performance & Meme Card */}
-                <div className="flex flex-col gap-2">
-                    <div className="bg-[#1A1A1B] rounded-xl p-4 w-fit max-w-[70%] self-start border border-[#27272a] shadow-lg transform hover:scale-105 transition-transform">
-                        <div className="text-gray-400 text-[10px] uppercase tracking-wider mb-2 font-semibold">All Time Performance</div>
-
-                        <div className="flex items-end gap-3 mb-2">
-                            <div>
-                                <div className="text-gray-500 text-[10px] mb-0.5">ATH</div>
-                                <div className="text-white font-mono text-sm font-bold">${(allTimeHigh / 100).toFixed(2)}</div>
-                            </div>
-                            <div className="h-8 w-px bg-[#333]"></div>
-                            <div>
-                                <div className="text-gray-500 text-[10px] mb-0.5">ATL</div>
-                                <div className="text-white font-mono text-sm font-bold">${(allTimeLow / 100).toFixed(2)}</div>
-                            </div>
-                        </div>
-
-                        {/* Meme Text */}
-                        <div className={`text-xs font-medium italic mt-1 ${stonk.currentPrice >= allTimeHigh * 0.95 ? 'text-[#00D084]' :
-                            stonk.currentPrice <= allTimeLow * 1.05 ? 'text-[#FF4444]' :
-                                'text-[#FFaa00]'
-                            }`}>
-                            "{
-                                stonk.currentPrice >= allTimeHigh * 0.95 ? "Moon soon? 🚀🌕" :
-                                    stonk.currentPrice <= allTimeLow * 1.05 ? "Buy the dip! 📉🧠" :
-                                        stonk.currentPrice >= allTimeHigh * 0.7 ? "Climbing the mountain 🧗" :
-                                            stonk.currentPrice <= allTimeLow * 1.3 ? "Oof, rough patch 🤕" :
-                                                "HODL tight 💎🙌"
-                            }"
-                        </div>
+                    {/* Mobile Chat (Bottom of Scroll) */}
+                    <div className="lg:hidden mt-4 pb-4 h-[400px]">
+                        <StockChat stonkId={stonkId} className="h-full" />
                     </div>
                 </div>
 
-                {/* User Holding */}
-                {userHolding && userHolding.qty > 0 && (
-                    <div className="bg-[#1A1A1B] rounded-xl p-3">
-                        <div className="text-gray-400 text-sm mb-3">Your Position</div>
-                        <div className="flex justify-between">
-                            <div>
-                                <div className="text-white font-medium">{userHolding.qty.toFixed(4)} shares</div>
-                                <div className="text-gray-500 text-xs">
-                                    Avg: ${(userHolding.avgPrice / 100).toFixed(2)}
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <div className="text-white font-medium">
-                                    ${((userHolding.qty * stonk.currentPrice) / 100).toFixed(2)}
-                                </div>
-                                <div className={`text-xs ${stonk.currentPrice >= userHolding.avgPrice
-                                    ? 'text-[#00D084]'
-                                    : 'text-[#FF4444]'
-                                    }`}>
-                                    {stonk.currentPrice >= userHolding.avgPrice ? '+' : ''}
-                                    ${(((stonk.currentPrice - userHolding.avgPrice) * userHolding.qty) / 100).toFixed(2)}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                {/* Fixed Footer Buy/Sell Buttons */}
+                <div className="px-4 py-4 flex gap-3 bg-[#0f0f0f] border-t border-[#222] mt-auto">
+                    <button
+                        onClick={() => openModal('sell')}
+                        className="flex-1 py-4 rounded-xl font-bold text-white border-2 border-white hover:bg-white/10 transition-colors"
+                    >
+                        SELL
+                    </button>
+                    <button
+                        onClick={() => openModal('buy')}
+                        className="flex-1 py-4 rounded-xl font-bold text-white bg-[#00D084] hover:bg-[#00b874] transition-colors"
+                    >
+                        BUY
+                    </button>
+                </div>
             </div>
 
-            {/* Fixed Footer Buy/Sell Buttons */}
-            <div className="px-4 py-4 flex gap-3 bg-[#0f0f0f] border-t border-[#222] mt-auto">
-                <button
-                    onClick={() => openModal('sell')}
-                    className="flex-1 py-4 rounded-xl font-bold text-white border-2 border-white hover:bg-white/10 transition-colors"
-                >
-                    SELL
-                </button>
-                <button
-                    onClick={() => openModal('buy')}
-                    className="flex-1 py-4 rounded-xl font-bold text-white bg-[#00D084] hover:bg-[#00b874] transition-colors"
-                >
-                    BUY
-                </button>
+            {/* Desktop Chat Sidebar */}
+            <div className="hidden lg:flex lg:w-[350px] xl:w-[400px] flex-col bg-[#111] border-l border-[#222]">
+                <StockChat stonkId={stonkId} className="h-full rounded-none border-0 bg-transparent" />
             </div>
 
             {/* Trade Modal */}

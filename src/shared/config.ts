@@ -109,6 +109,16 @@ export const PRICE_HISTORY_RETENTION_DAYS = 7;
 export const MAX_PRICE_HISTORY_ENTRIES = 10000;
 
 // ============================================
+// CHAT CONFIGURATION
+// ============================================
+
+/** Max chat messages to store per stonk */
+export const CHAT_LIMIT = 40;
+
+/** Chat cache TTL in seconds */
+export const CHAT_CACHE_TTL = 2;
+
+// ============================================
 // REDIS KEY PATTERNS
 // ============================================
 
@@ -127,6 +137,9 @@ export const REDIS_KEYS = {
 
     /** Stonk price history sorted set - use with stonkId */
     stonkHistory: (stonkId: string) => `stonk:${stonkId}:history`,
+
+    /** Stonk chat messages sorted set - use with stonkId */
+    stonkChat: (stonkId: string) => `stonk:${stonkId}:chat`,
 
     /** User data hash - use with userId */
     userData: (userId: string) => `user:${userId}`,

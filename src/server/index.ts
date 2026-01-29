@@ -5,6 +5,7 @@ import { createServer, getServerPort } from '@devvit/web/server';
 import marketRoutes from './routes/market';
 import modRoutes from './routes/mod';
 import schedulerRoutes from './routes/scheduler';
+import chatRoutes from './routes/chat';
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use(express.text());
 app.use(marketRoutes);
 app.use(modRoutes);
 app.use(schedulerRoutes);
+app.use(chatRoutes);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
