@@ -228,23 +228,33 @@ interface TradeModalProps {
     isPositiveTrend: boolean;
     onClose: () => void;
     onTrade: (amount: number) => Promise<{ success: boolean; message: string }>;
+    spendLimit?: { allowed: boolean; remaining: number; spent: number } | undefined;
 }
 
-const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPositiveTrend, onClose, onTrade }: TradeModalProps) => {
+const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPositiveTrend, onClose, onTrade, spendLimit }: TradeModalProps) => {
     const [quantity, setQuantity] = useState(1);
     const [trading, setTrading] = useState(false);
     const [message, setMessage] = useState<string | null>(null);
 
     // Calculate max quantity
-    const maxBuyQty = walletBalance > 0 && stonk.currentPrice > 0
-        ? Math.floor(walletBalance / stonk.currentPrice)
-        : 0;
-    const maxSellQty = userHolding ? Math.floor(userHolding.qty) : 0;
+    // For Buy: Min of Wallet Limit and Spend Limit
+    let maxBuyQty = 0;
+    if (walletBalance > 0 && stonk.currentPrice > 0) {
+        const walletMax = walletBalance / stonk.currentPrice;
+        const limitMax = spendLimit ? spendLimit.remaining / stonk.currentPrice : walletMax;
+        maxBuyQty = Math.min(walletMax, limitMax);
+    }
+
+    // For Sell: Max of holdings
+    const maxSellQty = userHolding ? userHolding.qty : 0;
+
     const maxQty = action === 'buy' ? maxBuyQty : maxSellQty;
 
     // Reset quantity when modal opens or action changes
     useEffect(() => {
-        setQuantity(maxQty > 0 ? 1 : 0);
+        // Default to 1 or max if less than 1 (but > 0)
+        const defaultQty = maxQty > 0 ? (maxQty < 1 ? maxQty : 1) : 0;
+        setQuantity(defaultQty);
         setMessage(null);
     }, [isOpen, action, maxQty]);
 
@@ -264,17 +274,24 @@ const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPosit
 
         // For buy: amount is in cents (totalCost)
         // For sell: amount is quantity (shares)
-        const payloadAmount = action === 'buy' ? totalCost : quantity;
-        const result = await onTrade(payloadAmount / 100); // Convert to dollars for buy
-
-        if (result.success) {
-            setMessage(`✅ ${result.message}`);
-            setTimeout(() => {
-                onClose();
-                setMessage(null);
-            }, 1200);
+        if (action === 'buy') {
+            const result = await onTrade(totalCost / 100); // Convert cents to dollars
+            handleResult(result);
         } else {
-            setMessage(`❌ ${result.message}`);
+            const result = await onTrade(quantity); // Pass shares directly
+            handleResult(result);
+        }
+
+        function handleResult(result: { success: boolean; message: string }) {
+            if (result.success) {
+                setMessage(`✅ ${result.message}`);
+                setTimeout(() => {
+                    onClose();
+                    setMessage(null);
+                }, 1200);
+            } else {
+                setMessage(`❌ ${result.message}`);
+            }
         }
 
         setTrading(false);
@@ -341,17 +358,18 @@ const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPosit
                     <div className="mb-5">
                         <div className="flex justify-between items-center mb-3">
                             <label className="text-gray-400 text-sm">Quantity</label>
-                            <span className="text-white font-bold text-2xl">{quantity}</span>
+                            <span className="text-white font-bold text-2xl">{quantity.toFixed(4).replace(/\.?0+$/, '')}</span>
                         </div>
 
                         {maxQty > 0 ? (
                             <>
                                 <input
                                     type="range"
-                                    min="1"
+                                    min={maxQty < 1 ? "0.0001" : "1"}
                                     max={maxQty}
+                                    step="0.0001"
                                     value={quantity}
-                                    onChange={(e) => setQuantity(parseInt(e.target.value))}
+                                    onChange={(e) => setQuantity(parseFloat(e.target.value))}
                                     className="w-full h-3 bg-[#333] rounded-lg appearance-none cursor-pointer slider-thumb"
                                     style={{
                                         background: `linear-gradient(to right, ${action === 'buy' ? '#00D084' : '#FF4444'} 0%, ${action === 'buy' ? '#00D084' : '#FF4444'} ${(quantity / maxQty) * 100}%, #333 ${(quantity / maxQty) * 100}%, #333 100%)`
@@ -359,13 +377,27 @@ const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPosit
                                     disabled={trading}
                                 />
                                 <div className="flex justify-between text-xs text-gray-500 mt-2">
-                                    <span>1</span>
-                                    <span>Max: {maxQty}</span>
+                                    <span>{maxQty < 1 ? "0" : "1"}</span>
+                                    <span>Max: {maxQty.toFixed(4).replace(/\.?0+$/, '')}</span>
                                 </div>
                             </>
                         ) : (
                             <div className="text-center py-4 text-gray-500 text-sm">
-                                {action === 'buy' ? 'Insufficient balance' : 'No shares to sell'}
+                                {action === 'buy'
+                                    ? (spendLimit && spendLimit.remaining <= 0 ? 'Monthly limit reached' : 'Insufficient balance')
+                                    : 'No shares to sell'}
+                            </div>
+                        )}
+
+                        {/* Limit Warning */}
+                        {action === 'buy' && spendLimit && (
+                            <div className="mt-2 text-xs text-center text-gray-500">
+                                Buy Limit Remaining: <span className="text-gray-300 font-mono">${(spendLimit.remaining / 100).toFixed(2)}</span>
+                            </div>
+                        )}
+                        {action === 'sell' && (
+                            <div className="mt-2 text-xs text-center text-gray-500">
+                                Sell Limit: <span className="text-[#00D084] font-bold">UNLIMITED</span>
                             </div>
                         )}
                     </div>
@@ -409,6 +441,7 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
     const [modalAction, setModalAction] = useState<'buy' | 'sell'>('buy');
     const [walletBalance, setWalletBalance] = useState(0);
     const [currentPrice, setCurrentPrice] = useState(0);
+    const [spendLimit, setSpendLimit] = useState<{ allowed: boolean; remaining: number; spent: number } | undefined>(undefined);
 
     // Realtime connection ref for cleanup
     const realtimeRef = useRef<{ disconnect: () => Promise<void> } | null>(null);
@@ -457,11 +490,14 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
      */
     const fetchStockDetail = async () => {
         try {
-            const res = await fetch(`/api/stonk/${stonkId}`);
+            const res = await fetch(`/api/stonk/${stonkId}`, {
+                headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+            });
             if (!res.ok) throw new Error('Failed to fetch stonk details');
             const stockData = await res.json();
             setStonk(stockData.stonk);
             setUserHolding(stockData.userHolding);
+            setSpendLimit(stockData.spendLimit);
             setCurrentPrice(stockData.stonk.currentPrice);
             setError(null);
         } catch (err) {
@@ -476,7 +512,9 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
      */
     const fetchWalletBalance = async () => {
         try {
-            const res = await fetch('/api/wallet');
+            const res = await fetch('/api/wallet', {
+                headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+            });
             if (res.ok) {
                 const walletData = await res.json();
                 setWalletBalance(walletData.balance || 0);
@@ -720,6 +758,7 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
                 isPositiveTrend={isPositiveTrend}
                 onClose={() => setModalOpen(false)}
                 onTrade={handleTrade}
+                spendLimit={spendLimit}
             />
         </div>
     );

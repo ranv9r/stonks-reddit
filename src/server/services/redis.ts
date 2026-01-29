@@ -282,21 +282,36 @@ export async function addSellVolume(stonkId: string, shares: number): Promise<nu
 /**
  * Gets and resets the batch volumes for a stonk.
  */
+/**
+ * Gets and resets the batch volumes for a stonk.
+ * Uses ATOMIC RENAME to ensure no volume is lost during the read-reset cycle.
+ */
 export async function getAndResetBatch(
     stonkId: string
 ): Promise<{ buyVolume: number; sellVolume: number }> {
-    const batch = await redis.hGetAll(REDIS_KEYS.stonkBatch(stonkId));
-    const buyVolume = parseInt(batch?.buyVolume || '0');
-    // Unscale the sell volume
-    const sellVolume = parseInt(batch?.sellVolume || '0') / 10000;
+    const key = REDIS_KEYS.stonkBatch(stonkId);
+    const tempKey = `${key}:processing:${Date.now()}`; // Unique temp key
 
-    // Reset batch
-    await redis.hSet(REDIS_KEYS.stonkBatch(stonkId), {
-        buyVolume: '0',
-        sellVolume: '0',
-    });
+    try {
+        // Atomically rename the current batch to a temp key
+        // This effectively "resets" the main key for new writes immediately
+        await redis.rename(key, tempKey);
 
-    return { buyVolume, sellVolume };
+        // Process the data from the temp key
+        const batch = await redis.hGetAll(tempKey);
+        
+        // Cleanup temp key
+        await redis.del(tempKey);
+
+        const buyVolume = parseInt(batch?.buyVolume || '0');
+        // Unscale the sell volume
+        const sellVolume = parseInt(batch?.sellVolume || '0') / 10000;
+
+        return { buyVolume, sellVolume };
+    } catch (e) {
+        // If rename fails (key doesn't exist aka no volume), return 0
+        return { buyVolume: 0, sellVolume: 0 };
+    }
 }
 
 // ============================================

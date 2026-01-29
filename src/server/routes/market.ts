@@ -105,6 +105,7 @@ router.get('/api/stonk/:id', async (req, res) => {
         if (userId) {
             const user = await redisService.getUser(userId);
             userHolding = user?.portfolio[id] || null;
+            console.log(`[API] StonkDetail ${id} User ${userId} Holding:`, userHolding);
             spendLimit = await tradingEngine.getUserSpendLimit(userId, id);
         }
 
@@ -286,6 +287,7 @@ router.get('/api/wallet', async (_req, res) => {
         }
 
         const user = await redisService.getOrCreateUser(userId, STARTING_BALANCE);
+        console.log(`[API] Wallet User ${userId} Balance: ${user.walletBalance}`);
         res.json({ balance: user.walletBalance });
     } catch (error) {
         console.error('[Wallet API] Error:', error);
