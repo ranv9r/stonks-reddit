@@ -4,7 +4,8 @@
  * Optimized for mobile, tablet, and desktop responsiveness.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { connectRealtime } from '@devvit/web/client';
 import { MarketView } from './views/MarketView';
 import { PortfolioView } from './views/PortfolioView';
 import { LeaderboardView } from './LeaderboardView';
@@ -18,6 +19,8 @@ export const App = () => {
   const [currentView, setCurrentView] = useState<View>('market');
   const [selectedStonkId, setSelectedStonkId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isMarketOpen, setIsMarketOpen] = useState(true);
+  const statusConnection = useRef<{ disconnect: () => Promise<void> } | null>(null);
 
   // Check if user is a moderator on mount
   useEffect(() => {
@@ -32,6 +35,25 @@ export const App = () => {
       }
     };
     checkModStatus();
+
+    // Subscribe to Market Status Updates
+    const setupRealtime = async () => {
+      try {
+        statusConnection.current = await connectRealtime({
+          channel: 'market_status',
+          onMessage: (data: any) => {
+            if (data && typeof data.eventActive === 'boolean') {
+              setIsMarketOpen(data.eventActive);
+            }
+          }
+        });
+      } catch (err) {
+        console.error('[App] Realtime failed:', err);
+      }
+    };
+    setupRealtime();
+
+    return () => { statusConnection.current?.disconnect(); };
   }, []);
   const [subredditName, setSubredditName] = useState<string>('Stonks');
 
@@ -72,9 +94,11 @@ export const App = () => {
             Stonks
           </h1>
         </div>
-        <div className="absolute right-4 lg:right-6 hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#18181b] rounded-full border border-[#27272a]">
-          <div className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse"></div>
-          <span className="text-xs lg:text-sm text-[#a1a1aa] font-medium">Live</span>
+        <div className="absolute right-4 lg:right-6 flex items-center gap-2 px-3 py-1.5 bg-[#18181b] rounded-full border border-[#27272a]">
+          <div className={`w-2 h-2 rounded-full animate-pulse ${isMarketOpen ? 'bg-[#22c55e]' : 'bg-red-500'}`}></div>
+          <span className="text-xs lg:text-sm text-[#a1a1aa] font-medium uppercase tracking-wide">
+            {isMarketOpen ? 'Live' : 'Paused'}
+          </span>
         </div>
       </header>
 

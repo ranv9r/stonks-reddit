@@ -4,7 +4,7 @@
  */
 
 import { Router } from 'express';
-import { context, reddit } from '@devvit/web/server';
+import { context, reddit, realtime } from '@devvit/web/server';
 import { STARTING_BALANCE, DEFAULT_BASE_PRICE, DEFAULT_X_VIRT } from '../../shared/config';
 import * as redisService from '../services/redis';
 import * as stressTestService from '../services/stressTestService';
@@ -53,16 +53,15 @@ router.get('/api/mod/check', async (_req, res) => {
 router.post('/internal/menu/create-game-post', async (_req, res) => {
     try {
         const post = await createPost();
-
+        console.log(`[Create Game Post] Success! Post ID: ${post.id}`);
         res.json({
-            navigateTo: `https://reddit.com/r/${context.subredditName}/comments/${post.id}`,
+            navigateTo: {
+                url: `https://reddit.com/r/${context.subredditName}/comments/${post.id}`,
+            },
         });
     } catch (error) {
         console.error('[Create Game Post] Error:', error);
-        res.status(400).json({
-            status: 'error',
-            message: 'Failed to create game post',
-        });
+        res.status(500).json({});
     }
 });
 
@@ -95,28 +94,16 @@ router.post('/internal/menu/manage-stonks', async (_req, res) => {
             console.log(`[Manage Stonks] Created/Reset: ${stock.ticker}`);
         }
 
-        // Return toast notification format
-        res.json({
-            success: true,
-            effects: [{
-                type: 'showToast',
-                text: `✅ ${testStocks.length} stocks created at $100 each!`
-            }]
-        });
+        console.log(`[Manage Stonks] ✅ ${testStocks.length} stocks created at $100 each!`);
+        res.json({});
     } catch (error) {
-        console.error('[Manage Stonks] Error:', error);
-        res.json({
-            success: false,
-            effects: [{
-                type: 'showToast',
-                text: '❌ Failed to create stocks'
-            }]
-        });
+        console.error('[Manage Stonks] ❌ Error:', error);
+        res.status(500).json({});
     }
 });
 
 /**
- * POST /api/mod/stonks - Create a new stonk.
+ * POST /api/mod/stonks - Create a new stonk. (Frontend API - Keep JSON structure)
  */
 router.post('/api/mod/stonks', async (req, res) => {
     try {
@@ -155,7 +142,7 @@ router.post('/api/mod/stonks', async (req, res) => {
         const targetPrice = basePrice || DEFAULT_BASE_PRICE;
         const xVirt = DEFAULT_X_VIRT;
         const yVirt = xVirt / targetPrice; // Adjust yVirt to achieve target price
-        
+
         const stonk = await redisService.createStonk(
             id,
             name,
@@ -257,16 +244,16 @@ router.delete('/api/mod/stonks/:id', async (req, res) => {
         try {
             const currentPrice = stonk.currentPrice;
             const allUserIds = await redisService.getAllUserIds();
-            
+
             console.log(`[Delete Stonk] Liquidation starting for ${stonk.ticker} ($${currentPrice}) - ${allUserIds.length} users`);
 
             if (allUserIds.length > 0) {
                 // Process users in larger batches to avoid timeout
-                const BATCH_SIZE = 50; 
+                const BATCH_SIZE = 50;
                 for (let i = 0; i < allUserIds.length; i += BATCH_SIZE) {
                     const batch = allUserIds.slice(i, i + BATCH_SIZE);
-                    console.log(`[Delete Stonk] Processing batch ${i/BATCH_SIZE + 1} of ${Math.ceil(allUserIds.length/BATCH_SIZE)}`);
-                    
+                    console.log(`[Delete Stonk] Processing batch ${i / BATCH_SIZE + 1} of ${Math.ceil(allUserIds.length / BATCH_SIZE)}`);
+
                     await Promise.all(batch.map(async (uid) => {
                         try {
                             const user = await redisService.getUser(uid);
@@ -279,7 +266,7 @@ router.delete('/api/mod/stonks/:id', async (req, res) => {
                                     if (refundAmount > 0) {
                                         // Update wallet
                                         await redisService.updateWalletBalance(uid, refundAmount);
-                                        
+
                                         // Remove from portfolio
                                         const newPortfolio = { ...user.portfolio };
                                         delete newPortfolio[id];
@@ -312,12 +299,12 @@ router.delete('/api/mod/stonks/:id', async (req, res) => {
                 throw new Error('redisService.deleteStonk returned false');
             }
         } catch (delErr) {
-             console.error('[Delete Stonk] Delete operation failed:', delErr);
-             res.status(500).json({ error: 'Failed to delete data. Liquidation status: ' + (liquidationError ? 'Errors' : 'OK') });
-             return;
+            console.error('[Delete Stonk] Delete operation failed:', delErr);
+            res.status(500).json({ error: 'Failed to delete data. Liquidation status: ' + (liquidationError ? 'Errors' : 'OK') });
+            return;
         }
 
-        let message = `Deleted ${stonk.ticker}. Liquidated ${refundCount} holdings for $${(totalRefunded/100).toFixed(2)}.`;
+        let message = `Deleted ${stonk.ticker}. Liquidated ${refundCount} holdings for $${(totalRefunded / 100).toFixed(2)}.`;
         if (liquidationError) {
             message += ` (Warning: Liquidation had errors: ${liquidationError})`;
         }
@@ -389,34 +376,46 @@ router.post('/api/mod/reset-game', async (_req, res) => {
 router.post('/internal/menu/start-event', async (_req, res) => {
     try {
         const { userId } = context;
-        if (!userId) {
-            res.status(401).json({ error: 'Must be logged in' });
-            return;
-        }
 
-        // Set event as active
+        // Initialize game config
         await redisService.setGameConfig({
             eventActive: true,
-            eventStartTime: Date.now(),
+            tickInterval: 5000,
             startingBalance: STARTING_BALANCE,
+            eventStartTime: Date.now(),
         });
 
-        console.log(`[Mod] Trading event started by ${userId}`);
-        res.json({
-            success: true,
-            message: 'Trading event started! All users will receive starting balance on first interaction.'
-        });
+        // Broadcast market status
+        await realtime.send('market_status', { eventActive: true });
+
+        console.log(`[Start Event] 🏁 Event started by ${userId}`);
+        res.json({ showToast: { text: '🏁 Trading Event Started!' } });
     } catch (error) {
-        console.error('[Start Event] Error:', error);
-        res.status(500).json({ error: 'Failed to start event' });
+        console.error('[Start Event] ❌ Error:', error);
+        res.status(500).json({});
+    }
+});
+
+/**
+ * POST /internal/menu/stop-event - Pause trading event.
+ */
+router.post('/internal/menu/stop-event', async (_req, res) => {
+    try {
+        await redisService.setGameConfig({ eventActive: false });
+
+        // Broadcast market status
+        await realtime.send('market_status', { eventActive: false });
+
+        console.log('[Stop Event] 🛑 Event paused by moderator');
+        res.json({ showToast: { text: '🛑 Trading Paused' } });
+    } catch (error) {
+        console.error('[Stop Event] ❌ Error:', error);
+        res.status(500).json({});
     }
 });
 
 /**
  * POST /internal/menu/reset-game - Reset all game data.
- * Resets all stocks to $100 with fresh liquidity.
- * Resets all user wallets to $10,000 and clears portfolios.
- * Clears the leaderboard completely.
  */
 router.post('/internal/menu/reset-game', async (_req, res) => {
     try {
@@ -445,7 +444,7 @@ router.post('/internal/menu/reset-game', async (_req, res) => {
         for (const stock of testStocks) {
             // Delete old price history
             await redisService.deletePriceHistory(stock.id);
-            
+
             await redisService.createStonk(
                 stock.id,
                 stock.name,
@@ -459,23 +458,16 @@ router.post('/internal/menu/reset-game', async (_req, res) => {
             console.log(`[Reset] Recreated: ${stock.ticker} at $100`);
         }
 
-        // Return toast notification
-        res.json({
-            success: true,
-            effects: [{
-                type: 'showToast',
-                text: `🔄 Full reset! ${allUserIds.length} users, ${testStocks.length} stocks at $100.`
-            }]
-        });
+        console.log(`[Reset] ✅ Full reset! ${allUserIds.length} users, ${testStocks.length} stocks at $100.`);
+
+        // AUTO-PAUSE MARKET ON RESET
+        await redisService.setGameConfig({ eventActive: false });
+        console.log('[Reset] Market auto-paused.');
+
+        res.json({});
     } catch (error) {
-        console.error('[Reset] Error:', error);
-        res.json({
-            success: false,
-            effects: [{
-                type: 'showToast',
-                text: '❌ Failed to reset game'
-            }]
-        });
+        console.error('[Reset] ❌ Error:', error);
+        res.status(500).json({});
     }
 });
 
@@ -537,30 +529,96 @@ router.post('/internal/triggers/on-app-install', async (_req, res) => {
 });
 
 /**
- * POST /internal/menu/stress/start - Start stress test.
+ * POST /internal/menu/stress/start - Show stress test configuration form.
  */
-router.post('/internal/menu/stress/start', async (req, res) => {
+router.post('/internal/menu/stress/start', async (_req, res) => {
+    res.json({
+        showForm: {
+            name: 'stressTestForm',
+            form: {
+                title: '⚡ Configure Stress Test',
+                fields: [
+                    {
+                        type: 'select',
+                        name: 'mode',
+                        label: 'Rally Mode',
+                        options: [
+                            { label: '🐂 Bull Rally (90% Buy)', value: 'bull' },
+                            { label: '🐻 Bear Rally (90% Sell)', value: 'bear' },
+                            { label: '⚖️ Neutral (50/50)', value: 'neutral' }
+                        ],
+                        defaultValue: ['bull']
+                    },
+                    { type: 'number', name: 'bots', label: 'Number of Bots', defaultValue: 100 },
+                    { type: 'number', name: 'minutes', label: 'Duration (Minutes)', defaultValue: 5 },
+                    { type: 'number', name: 'amountPerTrade', label: 'Fixed $ per Trade', defaultValue: 100 }
+                ]
+            }
+        }
+    });
+});
+
+/**
+ * POST /internal/forms/stress-test - Handle stress test form submission.
+ * Calculates predicted final price using AMM formula as a unit test.
+ */
+router.post('/internal/forms/stress-test', async (req, res) => {
     try {
-        const { bots, minutes } = req.body;
-        const numBots = bots || 100;
-        const duration = minutes || 5;
-        await stressTestService.startStressTest(numBots, duration);
-        
+        const values = req.body.values || req.body;
+        const mode = (Array.isArray(values.mode) ? values.mode[0] : values.mode) || 'neutral';
+        const numBots = Math.min(Math.max(Number(values.bots) || 100, 10), 1000);
+        const duration = Math.min(Math.max(Number(values.minutes) || 5, 1), 60);
+        const amountPerTrade = Math.min(Math.max(Number(values.amountPerTrade) || 100, 10), 10000) * 100; // Convert to cents
+
+        // Get all stonks for price prediction
+        const stonks = await redisService.getAllStonks();
+
+        // Calculate predicted price for each stonk using AMM formula
+        const predictions: { ticker: string; predicted: number }[] = [];
+        const ticksPerMinute = 12; // 5-second interval = 12 ticks/min
+        const totalTicks = duration * ticksPerMinute;
+        const tradesPerTick = 170;
+        const totalTrades = totalTicks * tradesPerTick;
+        const buyRatio = mode === 'bull' ? 0.9 : mode === 'bear' ? 0.1 : 0.5;
+
+        for (const s of stonks) {
+            // Estimate net cash flow into the AMM
+            const totalBuyCash = totalTrades * buyRatio * amountPerTrade;
+            const totalSellShares = totalTrades * (1 - buyRatio) * (amountPerTrade / s.currentPrice);
+
+            // Simplified AMM prediction: price = K / shares
+            // After buys: xReal increases, yReal decreases (price goes up)
+            // After sells: xReal decreases, yReal increases (price goes down)
+            const currentK = (s.xVirt + (s.xReal || 0)) * (s.yVirt + (s.yReal || 0));
+            const netCashInflux = totalBuyCash - (totalSellShares * s.currentPrice);
+            const newXReal = (s.xReal || 0) + netCashInflux;
+            const newYReal = currentK / (s.xVirt + newXReal) - s.yVirt;
+            const predictedPrice = (s.xVirt + newXReal) / (s.yVirt + Math.max(newYReal, 0.01));
+
+            predictions.push({
+                ticker: s.ticker,
+                predicted: Math.round(predictedPrice) / 100 // Convert cents to dollars
+            });
+        }
+
+        // Start the stress test
+        await stressTestService.startStressTest(numBots, duration, mode, amountPerTrade);
+
+        // Build prediction string
+        const predictionStr = predictions.map(p => `${p.ticker}: $${p.predicted.toFixed(2)}`).join(', ');
+
+        console.log(`[Stress] ✅ Started: ${numBots} bots, ${duration} mins, mode=${mode}`);
+        console.log(`[Stress] 📊 Predicted prices: ${predictionStr}`);
+
         res.json({
-            success: true,
-            effects: [{
-                type: 'showToast',
-                text: `🚀 Stress Test Started: ${numBots} bots for ${duration} mins.`
-            }]
+            showToast: {
+                text: `🧪 Test started! Predicted: ${predictionStr}`
+            }
         });
     } catch (e) {
-        console.error(e);
-        res.json({
-            success: false,
-            effects: [{
-                type: 'showToast',
-                text: `❌ Error: ${String(e)}`
-            }]
+        console.error('[Stress] ❌ Form handler error:', e);
+        res.status(500).json({
+            showToast: { text: '❌ Failed to start stress test' }
         });
     }
 });
@@ -570,13 +628,11 @@ router.post('/internal/menu/stress/start', async (req, res) => {
  */
 router.post('/internal/menu/stress/stop', async (_req, res) => {
     await stressTestService.stopStressTest();
+    console.log('[Stress] ✅ Stress Test Stopped.');
     res.json({
-        success: true,
-        effects: [{
-            type: 'showToast',
-            text: '🛑 Stress Test Stopped.'
-        }]
+        showToast: { text: '🛑 Stress Test Stopped' }
     });
 });
 
 export default router;
+

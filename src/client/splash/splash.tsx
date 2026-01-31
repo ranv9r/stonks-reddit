@@ -41,8 +41,11 @@ interface PortfolioData {
 export const Splash = () => {
   const [stonks, setStonks] = useState<StonkPreview[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
+  const [isMarketOpen, setIsMarketOpen] = useState(true);
   const [loading, setLoading] = useState(true);
-  const connectionRef = useRef<{ disconnect: () => Promise<void> } | null>(null);
+
+  const tickerConnection = useRef<{ disconnect: () => Promise<void> } | null>(null);
+  const statusConnection = useRef<{ disconnect: () => Promise<void> } | null>(null);
 
   useEffect(() => {
     fetchMarketPreview();
@@ -50,7 +53,8 @@ export const Splash = () => {
 
     const setupRealtime = async () => {
       try {
-        connectionRef.current = await connectRealtime({
+        // 1. Subscribe to Ticker Updates
+        tickerConnection.current = await connectRealtime({
           channel: 'global_ticker',
           onMessage: (data: unknown) => {
             const payload = data as MarketTickPayload;
@@ -61,9 +65,19 @@ export const Splash = () => {
               priceChangePercent: s.priceChangePercent,
             }));
             setStonks(updatedStonks);
+            // Re-fetch portfolio on price update
+            fetchPortfolio();
           },
-          onConnect: () => console.log('[Splash] Connected'),
-          onDisconnect: () => console.log('[Splash] Disconnected'),
+        });
+
+        // 2. Subscribe to Market Status Updates
+        statusConnection.current = await connectRealtime({
+          channel: 'market_status',
+          onMessage: (data: any) => {
+            if (data && typeof data.eventActive === 'boolean') {
+              setIsMarketOpen(data.eventActive);
+            }
+          }
         });
       } catch (err) {
         console.error('[Splash] Realtime failed:', err);
@@ -71,7 +85,11 @@ export const Splash = () => {
     };
 
     setupRealtime();
-    return () => { connectionRef.current?.disconnect(); };
+
+    return () => {
+      tickerConnection.current?.disconnect();
+      statusConnection.current?.disconnect();
+    };
   }, []);
 
   /** Fetches market preview data from API */
@@ -156,7 +174,15 @@ export const Splash = () => {
 
         {/* RIGHT Column - Live Market Cards */}
         <div className="splash-right">
-          <div className="market-header">Live Market</div>
+          <div className="market-header flex items-center justify-between">
+            <span>Live Market</span>
+            <div className={`flex items-center gap-2 px-3 py-1 bg-[#18181b] rounded-full border border-[#27272a] shadow-sm`}>
+              <div className={`w-2 h-2 rounded-full animate-pulse ${isMarketOpen ? 'bg-[#22c55e]' : 'bg-red-500'}`}></div>
+              <span className="text-xs font-medium text-[#a1a1aa] uppercase tracking-wide">
+                {isMarketOpen ? 'Live' : 'Paused'}
+              </span>
+            </div>
+          </div>
           <div className="market-cards">
             {!loading && stonks.slice(0, MARKET_PREVIEW_COUNT).map((stonk) => (
               <div key={stonk.ticker} className="market-card">

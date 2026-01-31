@@ -95,7 +95,7 @@ export async function executeBuy(
     }
 
     actualAmount = Math.min(actualAmount, user.walletBalance, allowedSpend.remaining);
-    
+
     if (actualAmount <= 0) {
         return { success: false, message: 'Insufficient funds or spend limit reached.' };
     }
@@ -109,10 +109,7 @@ export async function executeBuy(
     // 2. Add to Batch (Accumulate Volume for next tick)
     await redisService.addBuyVolume(stonk.id, actualAmount);
 
-    // 3. Update User Wallet (Deduct Cash)
-    await redisService.updateWalletBalance(userId, -actualAmount);
-
-    // 4. Update User Portfolio (Add Shares)
+    // 3. Build updated portfolio
     const updatedPortfolio: Portfolio = { ...user.portfolio };
     const existingHolding = updatedPortfolio[stonkId];
 
@@ -133,7 +130,8 @@ export async function executeBuy(
         };
     }
 
-    await redisService.updatePortfolio(userId, updatedPortfolio);
+    // 4. Atomically update wallet and portfolio (deduct cash, add shares)
+    await redisService.atomicUpdateUserTrade(userId, -actualAmount, updatedPortfolio);
 
     // 5. Record spending for cooldown
     await redisService.recordSpending(userId, stonkId, actualAmount);
@@ -204,10 +202,7 @@ export async function executeSell(
     // 2. Add to Batch (Accumulate Volume for next tick)
     await redisService.addSellVolume(stonkId, actualQuantity);
 
-    // 3. Update User Wallet (Credit Cash)
-    await redisService.updateWalletBalance(userId, Math.round(actualValue));
-
-    // 4. Update User Portfolio (Remove Shares)
+    // 3. Build updated portfolio (Remove Shares)
     const updatedPortfolio: Portfolio = { ...user.portfolio };
     updatedPortfolio[stonkId] = {
         ...holding,
@@ -219,7 +214,8 @@ export async function executeSell(
         delete updatedPortfolio[stonkId];
     }
 
-    await redisService.updatePortfolio(userId, updatedPortfolio);
+    // 4. Atomically update wallet and portfolio (credit cash, remove shares)
+    await redisService.atomicUpdateUserTrade(userId, Math.round(actualValue), updatedPortfolio);
 
     // 5. Record spending: SKIPPED for Sell.
     // Sells do not consume the Buy limit.
@@ -264,16 +260,16 @@ export async function resolveBatches(): Promise<void> {
         // Logic:
         // Users bought 'buyVolume' cash worth of stock at OLD price.
         // Users sold 'sellVolume' shares of stock at OLD price.
-        
+
         // We update reserves based on the NET FLOW of cash and shares that occurred.
         // xReal (Cash): Increases by Buy Cash In, Decreases by Sell Cash Out.
         // yReal (Shares): Increases by Sell Shares In, Decreases by Buy Shares Out.
 
         const currentPrice = stonk.currentPrice;
-        
+
         const cashIn = buyVolume;
         const cashOut = sellVolume * currentPrice;
-        
+
         const sharesIn = sellVolume;
         const sharesOut = buyVolume / currentPrice;
 
@@ -294,8 +290,8 @@ export async function resolveBatches(): Promise<void> {
             newPrice,
             Math.round(totalVol)
         );
-        
-        console.log(`[Batch] ${stonk.ticker}: Buys=$${buyVolume/100}, Sells=${sellVolume} -> Price: $${currentPrice/100} -> $${newPrice/100}`);
+
+        console.log(`[Batch] ${stonk.ticker}: Buys=$${buyVolume / 100}, Sells=${sellVolume} -> Price: $${currentPrice / 100} -> $${newPrice / 100}`);
     }));
 }
 

@@ -171,6 +171,13 @@ router.post('/api/trade', async (req, res) => {
             return;
         }
 
+        // Check if market is open
+        const config = await redisService.getGameConfig();
+        if (!config.eventActive) {
+            res.status(403).json({ success: false, message: 'Market is closed' });
+            return;
+        }
+
         const { stonkId, action, amount } = req.body as TradeRequest;
 
         // Validate input

@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "pump-o-dump2",
+  "name": "pump-o-dump",
   "post": {
     "dir": "dist/client",
     "entrypoints": {
@@ -62,13 +62,6 @@
         "endpoint": "/internal/menu/create-game-post"
       },
       {
-        "label": "Manage Stonks",
-        "description": "Add or configure tradable stonks",
-        "location": "subreddit",
-        "forUserType": "moderator",
-        "endpoint": "/internal/menu/manage-stonks"
-      },
-      {
         "label": "Start Trading Event",
         "description": "Give all users starting balance and begin trading",
         "location": "subreddit",
@@ -76,11 +69,11 @@
         "endpoint": "/internal/menu/start-event"
       },
       {
-        "label": "🔄 Reset Game Data",
-        "description": "Reset all stocks to $100 and clear user data",
+        "label": "🛑 Stop Trading Event",
+        "description": "Pause all trading activities",
         "location": "subreddit",
         "forUserType": "moderator",
-        "endpoint": "/internal/menu/reset-game"
+        "endpoint": "/internal/menu/stop-event"
       },
       {
         "label": "⚡ Start Stress Test",
@@ -98,10 +91,13 @@
       }
     ]
   },
+  "forms": {
+    "stressTestForm": "/internal/forms/stress-test"
+  },
   "triggers": {
     "onAppInstall": "/internal/triggers/on-app-install"
   },
   "dev": {
-    "subreddit": "pump_o_dump2_dev"
+    "subreddit": "pump_o_dump_dev2"
   }
 }

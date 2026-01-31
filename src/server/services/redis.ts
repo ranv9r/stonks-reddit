@@ -285,6 +285,7 @@ export async function addSellVolume(stonkId: string, shares: number): Promise<nu
 /**
  * Gets and resets the batch volumes for a stonk.
  * Uses ATOMIC RENAME to ensure no volume is lost during the read-reset cycle.
+ * Re-initializes the batch key after reading to ensure it always exists.
  */
 export async function getAndResetBatch(
     stonkId: string
@@ -297,9 +298,15 @@ export async function getAndResetBatch(
         // This effectively "resets" the main key for new writes immediately
         await redis.rename(key, tempKey);
 
+        // Re-initialize the batch key immediately for new writes
+        await redis.hSet(key, {
+            buyVolume: '0',
+            sellVolume: '0',
+        });
+
         // Process the data from the temp key
         const batch = await redis.hGetAll(tempKey);
-        
+
         // Cleanup temp key
         await redis.del(tempKey);
 
@@ -309,7 +316,11 @@ export async function getAndResetBatch(
 
         return { buyVolume, sellVolume };
     } catch (e) {
-        // If rename fails (key doesn't exist aka no volume), return 0
+        // If rename fails (key doesn't exist aka no volume), ensure key exists and return 0
+        await redis.hSet(key, {
+            buyVolume: '0',
+            sellVolume: '0',
+        });
         return { buyVolume: 0, sellVolume: 0 };
     }
 }
@@ -573,4 +584,47 @@ export async function setGameConfig(config: Partial<GameConfig>): Promise<void> 
     }
 }
 
+// ============================================
+// ATOMIC TRADE OPERATIONS
+// ============================================
+
+/**
+ * Atomically updates user's wallet and portfolio in a single Redis transaction.
+ * Ensures both operations succeed or fail together - no partial state.
+ */
+export async function atomicUpdateUserTrade(
+    userId: string,
+    walletDelta: number,
+    portfolio: Portfolio
+): Promise<void> {
+    const userKey = REDIS_KEYS.userData(userId);
+
+    // Start a transaction by watching the user's key
+    const txn = await redis.watch(userKey);
+
+    try {
+        // Begin the transaction
+        await txn.multi();
+
+        // Queue wallet update (increment by delta)
+        await txn.hIncrBy(userKey, 'walletBalance', walletDelta);
+
+        // Queue portfolio update
+        await txn.hSet(userKey, {
+            portfolio: JSON.stringify(portfolio),
+            lastTradeAt: String(Date.now()),
+        });
+
+        // Execute all commands atomically
+        await txn.exec();
+    } catch (e) {
+        // If anything fails, discard the transaction
+        try {
+            await txn.discard();
+        } catch {
+            // Ignore discard errors
+        }
+        throw e;
+    }
+}
 

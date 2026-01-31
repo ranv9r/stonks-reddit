@@ -20,6 +20,13 @@ const router = Router();
  */
 router.post('/internal/scheduler/price-tick', async (_req, res) => {
     try {
+        // Check if market is active
+        const config = await redisService.getGameConfig();
+        if (!config.eventActive) {
+            res.status(200).json({ status: 'skipped', reason: 'market paused' });
+            return;
+        }
+
         console.log(`[Price Tick] Starting at ${new Date().toISOString()}`);
 
         await tradingEngine.resolveBatches();
@@ -65,6 +72,13 @@ router.post('/internal/scheduler/price-tick', async (_req, res) => {
  */
 router.post('/internal/scheduler/ticker-tier-2', async (_req, res) => {
     try {
+        // Check if market is active
+        const config = await redisService.getGameConfig();
+        if (!config.eventActive) {
+            res.status(200).json({ status: 'skipped', reason: 'market paused' });
+            return;
+        }
+
         console.log(`[Ticker Tier 2] Starting at ${new Date().toISOString()}`);
         const stonkIds = await stockTickerService.getAllStonkIds();
         let updated = 0;
@@ -86,6 +100,13 @@ router.post('/internal/scheduler/ticker-tier-2', async (_req, res) => {
  */
 router.post('/internal/scheduler/ticker-tier-3', async (_req, res) => {
     try {
+        // Check if market is active
+        const config = await redisService.getGameConfig();
+        if (!config.eventActive) {
+            res.status(200).json({ status: 'skipped', reason: 'market paused' });
+            return;
+        }
+
         console.log(`[Ticker Tier 3] Starting at ${new Date().toISOString()}`);
         const stonkIds = await stockTickerService.getAllStonkIds();
         let updated = 0;
@@ -107,6 +128,13 @@ router.post('/internal/scheduler/ticker-tier-3', async (_req, res) => {
  */
 router.post('/internal/scheduler/ticker-tier-4', async (_req, res) => {
     try {
+        // Check if market is active
+        const config = await redisService.getGameConfig();
+        if (!config.eventActive) {
+            res.status(200).json({ status: 'skipped', reason: 'market paused' });
+            return;
+        }
+
         console.log(`[Ticker Tier 4] Starting at ${new Date().toISOString()}`);
         const stonkIds = await stockTickerService.getAllStonkIds();
         let updated = 0;
@@ -128,6 +156,13 @@ router.post('/internal/scheduler/ticker-tier-4', async (_req, res) => {
  */
 router.post('/internal/scheduler/ticker-tier-5', async (_req, res) => {
     try {
+        // Check if market is active
+        const config = await redisService.getGameConfig();
+        if (!config.eventActive) {
+            res.status(200).json({ status: 'skipped', reason: 'market paused' });
+            return;
+        }
+
         console.log(`[Ticker Tier 5] Starting at ${new Date().toISOString()}`);
         const stonkIds = await stockTickerService.getAllStonkIds();
         let updated = 0;
