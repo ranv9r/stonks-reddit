@@ -10,6 +10,7 @@ import * as leaderboardService from '../services/leaderboardService';
 import * as stressTestService from '../services/stressTestService';
 import * as redisService from '../services/redis';
 import * as stockTickerService from '../services/stockTickerService';
+import * as flairService from '../services/flairService';
 
 const router = Router();
 
@@ -187,6 +188,13 @@ router.post('/internal/scheduler/leaderboard-update', async (_req, res) => {
         console.log(`[Leaderboard Update] Starting at ${new Date().toISOString()}`);
 
         await leaderboardService.updateLeaderboard();
+
+        // Update user flairs based on new rankings (if enabled)
+        try {
+            await flairService.updateAllUserFlairs();
+        } catch (flairErr) {
+            console.error('[Leaderboard Update] Flair update failed:', flairErr);
+        }
 
         // Broadcast leaderboard update notification to all clients
         await realtime.send('leaderboard_update', { timestamp: Date.now() });

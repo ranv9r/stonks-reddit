@@ -50,6 +50,10 @@ export const Splash = () => {
   useEffect(() => {
     fetchMarketPreview();
     fetchPortfolio();
+    fetchGameConfig();
+
+    // Poll for status every 10 seconds (backup for realtime)
+    const intervalId = setInterval(fetchGameConfig, 10000);
 
     const setupRealtime = async () => {
       try {
@@ -87,6 +91,7 @@ export const Splash = () => {
     setupRealtime();
 
     return () => {
+      clearInterval(intervalId);
       tickerConnection.current?.disconnect();
       statusConnection.current?.disconnect();
     };
@@ -104,6 +109,21 @@ export const Splash = () => {
       console.error('Failed to fetch market:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  /** Fetches game config to check market status */
+  const fetchGameConfig = async () => {
+    try {
+      const res = await fetch('/api/config');
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof data.eventActive === 'boolean') {
+          setIsMarketOpen(data.eventActive);
+        }
+      }
+    } catch (e) {
+      console.error('[Splash] Config fetch failed:', e);
     }
   };
 

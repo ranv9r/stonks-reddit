@@ -14,7 +14,7 @@ import { getAllStonks } from './redis';
 import { STARTING_BALANCE } from '../../shared/config';
 
 const STRESS_KEY = 'stress:config';
-const BOTS_PER_TICK = 170; // Target ~10k trades over 5 mins
+// BOTS_PER_TICK removed - using config.numBots dynamically
 
 export type RallyMode = 'bull' | 'bear' | 'neutral';
 
@@ -43,15 +43,45 @@ export async function startStressTest(
         amountPerTrade,
     };
     await redis.set(STRESS_KEY, JSON.stringify(config));
-    console.log(`[Stress] Started: ${numBots} bots, ${durationMinutes} mins, mode=${mode}, $${amountPerTrade / 100}/trade`);
+
+    // Calculate expected trades
+    const ticksPerMinute = 12; // Every 5 seconds = 12 per minute
+    const totalTicks = durationMinutes * ticksPerMinute;
+    const expectedTrades = numBots * totalTicks;
+    const expectedVolume = expectedTrades * amountPerTrade;
+
+    // Get initial market volume for comparison later
+    const stonks = await getAllStonks();
+    const initialVolume = stonks.reduce((sum, s) => sum + (s.totalVolume || 0), 0);
+    await redis.set('stress:initial_volume', String(initialVolume));
+
+    console.log(`[Stress] ========== STRESS TEST STARTED ==========`);
+    console.log(`[Stress] Config: ${numBots} bots, ${durationMinutes} mins, mode=${mode}, $${amountPerTrade / 100}/trade`);
+    console.log(`[Stress] Expected: ${numBots} trades/tick × ${totalTicks} ticks = ${expectedTrades} total trades`);
+    console.log(`[Stress] Expected volume added: $${(expectedVolume / 100).toFixed(2)}`);
+    console.log(`[Stress] Initial market volume: $${(initialVolume / 100).toFixed(2)}`);
+    console.log(`[Stress] =============================================`);
 }
 
 /**
- * Stops the stress test.
+ * Stops the stress test and logs final verification.
  */
 export async function stopStressTest() {
+    // Get final stats before clearing
+    const stonks = await getAllStonks();
+    const finalVolume = stonks.reduce((sum, s) => sum + (s.totalVolume || 0), 0);
+    const initialVolumeStr = await redis.get('stress:initial_volume');
+    const initialVolume = initialVolumeStr ? parseInt(initialVolumeStr) : 0;
+    const addedVolume = finalVolume - initialVolume;
+
+    console.log(`[Stress] ========== STRESS TEST STOPPED ==========`);
+    console.log(`[Stress] Initial volume: $${(initialVolume / 100).toFixed(2)}`);
+    console.log(`[Stress] Final volume:   $${(finalVolume / 100).toFixed(2)}`);
+    console.log(`[Stress] Added volume:   $${(addedVolume / 100).toFixed(2)}`);
+    console.log(`[Stress] =============================================`);
+
     await redis.del(STRESS_KEY);
-    console.log('[Stress] Stopped');
+    await redis.del('stress:initial_volume');
 }
 
 /**
@@ -66,6 +96,7 @@ export async function getStressConfig(): Promise<StressConfig | null> {
 /**
  * Executes one tick of the stress test.
  * Called by the scheduler every 5 seconds.
+ * Now includes verification logging for trade success tracking.
  */
 export async function tick() {
     try {
@@ -83,8 +114,17 @@ export async function tick() {
         // Determine buy ratio based on mode
         const buyRatio = config.mode === 'bull' ? 0.9 : config.mode === 'bear' ? 0.1 : 0.5;
 
-        const promises: Promise<any>[] = [];
-        for (let i = 0; i < BOTS_PER_TICK; i++) {
+        // Track trade results for verification
+        let successfulTrades = 0;
+        let failedTrades = 0;
+        let totalBuyAmount = 0;
+        let totalSellAmount = 0;
+
+        const promises: Promise<void>[] = [];
+        // Use configured number of bots for trades per tick
+        const tradesThisTick = config.numBots;
+
+        for (let i = 0; i < tradesThisTick; i++) {
             const botId = `bot-${Math.floor(Math.random() * config.numBots)}`;
             const stonk = stonks[Math.floor(Math.random() * stonks.length)];
             if (!stonk) continue; // Safety check
@@ -95,7 +135,17 @@ export async function tick() {
                 // Buy with fixed amount
                 promises.push(
                     executeBuy(botId, stonk.id, config.amountPerTrade, STARTING_BALANCE)
-                        .catch(() => { })
+                        .then(() => {
+                            successfulTrades++;
+                            totalBuyAmount += config.amountPerTrade;
+                        })
+                        .catch((err) => {
+                            failedTrades++;
+                            // Log first few failures for debugging
+                            if (failedTrades <= 3) {
+                                console.error(`[Stress] Buy failed for ${botId}:`, err);
+                            }
+                        })
                 );
             } else {
                 // Sell fixed dollar equivalent in shares
@@ -103,14 +153,37 @@ export async function tick() {
                     const shares = config.amountPerTrade / stonk.currentPrice;
                     promises.push(
                         executeSell(botId, stonk.id, shares, STARTING_BALANCE)
-                            .catch(() => { })
+                            .then(() => {
+                                successfulTrades++;
+                                totalSellAmount += config.amountPerTrade;
+                            })
+                            .catch((err) => {
+                                failedTrades++;
+                                if (failedTrades <= 3) {
+                                    console.error(`[Stress] Sell failed for ${botId}:`, err);
+                                }
+                            })
                     );
                 }
             }
         }
 
         await Promise.all(promises);
-        console.log(`[Stress] Tick: ${promises.length} trades (${config.mode} mode, $${config.amountPerTrade / 100}/trade)`);
+
+        // Log verification stats
+        const successRate = promises.length > 0 ? ((successfulTrades / promises.length) * 100).toFixed(1) : '0';
+        console.log(`[Stress] Tick: ${successfulTrades}/${promises.length} trades succeeded (${successRate}% success rate)`);
+        console.log(`[Stress] Buys: $${(totalBuyAmount / 100).toFixed(2)}, Sells: $${(totalSellAmount / 100).toFixed(2)}`);
+
+        if (failedTrades > 0) {
+            console.warn(`[Stress] ⚠️ ${failedTrades} trades FAILED this tick!`);
+        }
+
+        // Log current total volume from Redis for verification
+        const updatedStonks = await getAllStonks();
+        const totalMarketVolume = updatedStonks.reduce((sum, s) => sum + (s.totalVolume || 0), 0);
+        console.log(`[Stress] Current total market volume: $${(totalMarketVolume / 100).toFixed(2)}`);
+
     } catch (e) {
         console.error('[Stress] Tick failed:', e);
     }

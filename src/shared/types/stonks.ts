@@ -210,6 +210,7 @@ export interface GameConfig {
     eventStartTime: number | null;
     tickInterval: number;
     startingBalance: number;
+    flairsEnabled: boolean;
 }
 
 // ============================================

@@ -27,7 +27,11 @@ const router = Router();
 router.get('/api/config', async (_req, res) => {
     try {
         const { subredditName } = context;
-        res.json({ subredditName: subredditName || 'Stonks' });
+        const config = await redisService.getGameConfig();
+        res.json({
+            subredditName: subredditName || 'Stonks',
+            eventActive: config.eventActive
+        });
     } catch (error) {
         console.error('[Config API] Error:', error);
         res.status(500).json({ error: 'Failed to fetch config' });

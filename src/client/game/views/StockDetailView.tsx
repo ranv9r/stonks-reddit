@@ -37,6 +37,7 @@ interface StonkState {
 interface StockDetailViewProps {
     stonkId: string;
     onBack: () => void;
+    isMarketOpen?: boolean;
 }
 
 interface TooltipData {
@@ -432,7 +433,7 @@ const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPosit
     );
 };
 
-export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
+export const StockDetailView = ({ stonkId, onBack, isMarketOpen = true }: StockDetailViewProps) => {
     const [stonk, setStonk] = useState<StonkState | null>(null);
     const [userHolding, setUserHolding] = useState<Holding | null>(null);
     const [loading, setLoading] = useState(true);
@@ -627,9 +628,16 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
                     <div className="text-3xl font-bold text-white">
                         ${(stonk.currentPrice / 100).toFixed(2)}
                     </div>
-                    <div className={`text-sm mt-1 flex items-center gap-1 ${priceChange >= 0 ? 'text-[#00D084]' : 'text-[#FF4444]'
-                        }`}>
-                        {priceChange >= 0 ? '▲' : '▼'} ${Math.abs(priceChange / 100).toFixed(2)} ({priceChangePercent >= 0 ? '+' : ''}{priceChangePercent.toFixed(2)}%)
+                    <div className="flex flex-col items-start">
+                        {!isMarketOpen && (
+                            <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full mt-0.5 mb-1">
+                                MARKET CLOSED
+                            </span>
+                        )}
+                        <div className={`text-sm mt-1 flex items-center gap-1 ${priceChange >= 0 ? 'text-[#00D084]' : 'text-[#FF4444]'
+                            }`}>
+                            {priceChange >= 0 ? '▲' : '▼'} ${Math.abs(priceChange / 100).toFixed(2)} ({priceChangePercent >= 0 ? '+' : ''}{priceChangePercent.toFixed(2)}%)
+                        </div>
                     </div>
                 </div>
 
@@ -726,20 +734,32 @@ export const StockDetailView = ({ stonkId, onBack }: StockDetailViewProps) => {
                     </div>
                 </div>
 
-                {/* Fixed Footer Buy/Sell Buttons */}
-                <div className="px-4 py-4 flex gap-3 bg-[#0f0f0f] border-t border-[#222] mt-auto">
-                    <button
-                        onClick={() => openModal('sell')}
-                        className="flex-1 py-4 rounded-xl font-bold text-white border-2 border-white hover:bg-white/10 transition-colors"
-                    >
-                        SELL
-                    </button>
-                    <button
-                        onClick={() => openModal('buy')}
-                        className="flex-1 py-4 rounded-xl font-bold text-white bg-[#00D084] hover:bg-[#00b874] transition-colors"
-                    >
-                        BUY
-                    </button>
+                {/* Footer Actions */}
+                <div className="mt-auto border-t border-[#27272a] bg-[#18181b] px-4 py-4 safe-area-bottom pb-8 z-20 shadow-[-4px_-4px_10px_rgba(0,0,0,0.5)]">
+                    <div className="flex gap-4 max-w-2xl mx-auto">
+                        <button
+                            onClick={() => openModal('sell')}
+                            disabled={!isMarketOpen}
+                            className={`flex-1 py-3.5 rounded-xl font-bold text-base transition-all active:scale-95 shadow-lg
+                            ${isMarketOpen
+                                    ? 'bg-[#ef4444] text-white hover:bg-[#dc2626] shadow-red-900/20'
+                                    : 'bg-[#27272a] text-slate-500 cursor-not-allowed opacity-50'
+                                }`}
+                        >
+                            SELL
+                        </button>
+                        <button
+                            onClick={() => openModal('buy')}
+                            disabled={!isMarketOpen}
+                            className={`flex-1 py-3.5 rounded-xl font-bold text-base transition-all active:scale-95 shadow-lg
+                            ${isMarketOpen
+                                    ? 'bg-[#22c55e] text-white hover:bg-[#16a34a] shadow-green-900/20'
+                                    : 'bg-[#27272a] text-slate-500 cursor-not-allowed opacity-50'
+                                }`}
+                        >
+                            BUY
+                        </button>
+                    </div>
                 </div>
             </div>
 

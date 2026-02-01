@@ -40,9 +40,10 @@ interface MarketTickPayload {
 interface MarketViewProps {
     onStonkClick: (stonkId: string) => void;
     subredditName?: string;
+    isMarketOpen?: boolean;
 }
 
-export const MarketView = ({ onStonkClick, subredditName }: MarketViewProps) => {
+export const MarketView = ({ onStonkClick, subredditName, isMarketOpen = true }: MarketViewProps) => {
     const [marketData, setMarketData] = useState<MarketData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -137,83 +138,94 @@ export const MarketView = ({ onStonkClick, subredditName }: MarketViewProps) => 
     if (!marketData) return null;
 
     return (
-        <div className="px-6 py-4 sm:px-8 sm:py-6 fade-in">
-            {/* Wallet Balance Card */}
-            <div className="glass-card-elevated p-5 mb-5 relative overflow-hidden text-center">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#FF4500] to-transparent opacity-10 blur-2xl rounded-full"></div>
-                <div className="relative z-10 flex flex-col items-center">
-                    <div className="text-[#a1a1aa] text-[13px] font-medium mb-2 flex items-center gap-2">
-                        <CoinIcon size={16} />
-                        Wallet Balance
-                    </div>
-                    <div className="text-[30px] sm:text-[35px] lg:text-[40px] font-bold text-white">
-                        ${(marketData.walletBalance / 100).toFixed(2)}
-                    </div>
-                </div>
-            </div>
-
-            {/* Stonks List Header */}
-            <div className="px-1 pb-3 flex items-center justify-between text-[11px] text-[#71717a] font-semibold tracking-wider">
-                <span className="uppercase">Available Assets</span>
-                {subredditName && (
-                    <span className="text-[#FF4500]/80">r/{subredditName}</span>
-                )}
-            </div>
-
-            {/* Stonks List */}
-            <div className="flex flex-col gap-3">
-                {marketData.stonks.map((stonk) => (
-                    <button
-                        key={stonk.id}
-                        onClick={() => onStonkClick(stonk.id)}
-                        className="w-full card p-4 hover:border-[#FF4500] hover:shadow-lg transition-all duration-200 group"
-                    >
-                        <div className="grid grid-cols-[auto_1fr_auto] gap-4 items-center">
-                            {/* Icon + Name */}
-                            <div className="flex items-center gap-3">
-                                {stonk.imageUrl ? (
-                                    <img
-                                        src={stonk.imageUrl}
-                                        alt={stonk.ticker}
-                                        className="w-10 h-10 rounded-lg object-cover"
-                                    />
-                                ) : (
-                                    <div className="text-3xl">{stonk.icon}</div>
-                                )}
-                                <div className="text-left">
-                                    <div className="font-bold text-white text-[15px] group-hover:text-[#FF4500] transition-colors">{stonk.ticker}</div>
-                                    <div className="text-[13px] text-[#71717a]">{stonk.name}</div>
-                                </div>
-                            </div>
-
-                            {/* Price + Change */}
-                            <div className="text-right">
-                                <div className="text-white font-semibold text-[15px]">
-                                    ${(stonk.currentPrice / 100).toFixed(2)}
-                                </div>
-                                <div className={`flex items-center gap-1 justify-end text-[13px] font-semibold mt-1 ${stonk.priceChangePercent >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'
-                                    }`}>
-                                    {stonk.priceChangePercent >= 0 ? (
-                                        <TrendingUpIcon size={14} />
-                                    ) : (
-                                        <TrendingDownIcon size={14} />
-                                    )}
-                                    {stonk.priceChangePercent >= 0 ? '+' : ''}
-                                    {stonk.priceChangePercent.toFixed(2)}%
-                                </div>
-                            </div>
-                        </div>
-                    </button>
-                ))}
-            </div>
-
-            {marketData.stonks.length === 0 && (
-                <div className="text-center text-[#71717a] mt-12 p-8">
-                    <div className="text-[35px] mb-3">📊</div>
-                    <div className="text-[15px] font-medium">No assets available yet</div>
-                    <div className="text-[13px] mt-2">Check back later!</div>
+        <div className="pb-24">
+            {/* Market Status Banner */}
+            {!isMarketOpen && (
+                <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2 flex items-center justify-center gap-2 mb-4">
+                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                    <span className="text-xs font-bold text-red-500 tracking-wider">MARKET CLOSED - TRADING PAUSED</span>
                 </div>
             )}
+            <div className="px-6 py-4 sm:px-8 sm:py-6 fade-in">
+                {/* Wallet Balance Card */}
+                <div className="glass-card-elevated p-5 mb-5 relative overflow-hidden text-center">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#FF4500] to-transparent opacity-10 blur-2xl rounded-full"></div>
+                    <div className="relative z-10 flex flex-col items-center">
+                        <div className="text-[#a1a1aa] text-[13px] font-medium mb-2 flex items-center gap-2">
+                            <CoinIcon size={16} />
+                            Wallet Balance
+                        </div>
+                        <div className="text-[30px] sm:text-[35px] lg:text-[40px] font-bold text-white">
+                            ${(marketData.walletBalance / 100).toFixed(2)}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Stonks List Header */}
+                <div className="px-1 pb-3 flex items-center justify-between text-[11px] text-[#71717a] font-semibold tracking-wider">
+                    <span className="uppercase">Available Assets</span>
+                    {subredditName && (
+                        <span className="text-[#FF4500]/80">r/{subredditName}</span>
+                    )}
+                </div>
+
+                {/* Stonks List */}
+                <div className="flex flex-col gap-3">
+                    {marketData.stonks.map((stonk) => (
+                        <button
+                            key={stonk.id}
+                            onClick={() => onStonkClick(stonk.id)}
+                            className="w-full card p-4 hover:border-[#FF4500] hover:shadow-lg transition-all duration-200 group"
+                        >
+                            <div className="grid grid-cols-[auto_1fr_auto] gap-4 items-center">
+                                {/* Icon + Name */}
+                                <div className="flex items-center gap-3">
+                                    {stonk.imageUrl ? (
+                                        <img
+                                            src={stonk.imageUrl}
+                                            alt={stonk.ticker}
+                                            className="w-10 h-10 rounded-lg object-cover"
+                                        />
+                                    ) : (
+                                        <div className="text-3xl">{stonk.icon}</div>
+                                    )}
+                                    <div className="text-left">
+                                        <div className="font-bold text-white text-[15px] group-hover:text-[#FF4500] transition-colors">{stonk.ticker}</div>
+                                        <div className="text-[13px] text-[#71717a]">{stonk.name}</div>
+                                    </div>
+                                </div>
+
+                                {/* Price + Change */}
+                                <div className="text-right">
+                                    <div className="text-white font-semibold text-[15px]">
+                                        ${(stonk.currentPrice / 100).toFixed(2)}
+                                    </div>
+                                    <div className={`flex items-center gap-1 justify-end text-[13px] font-semibold mt-1 ${stonk.priceChangePercent >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'
+                                        }`}>
+                                        {stonk.priceChangePercent >= 0 ? (
+                                            <TrendingUpIcon size={14} />
+                                        ) : (
+                                            <TrendingDownIcon size={14} />
+                                        )}
+                                        {stonk.priceChangePercent >= 0 ? '+' : ''}
+                                        {stonk.priceChangePercent.toFixed(2)}%
+                                    </div>
+                                </div>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+
+                {
+                    marketData.stonks.length === 0 && (
+                        <div className="text-center text-[#71717a] mt-12 p-8">
+                            <div className="text-[35px] mb-3">📊</div>
+                            <div className="text-[15px] font-medium">No assets available yet</div>
+                            <div className="text-[13px] mt-2">Check back later!</div>
+                        </div>
+                    )
+                }
+            </div >
         </div>
     );
 };

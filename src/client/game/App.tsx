@@ -19,7 +19,7 @@ export const App = () => {
   const [currentView, setCurrentView] = useState<View>('market');
   const [selectedStonkId, setSelectedStonkId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isMarketOpen, setIsMarketOpen] = useState(true);
+  const [isMarketOpen, setIsMarketOpen] = useState(false); // Default closed until fetched
   const statusConnection = useRef<{ disconnect: () => Promise<void> } | null>(null);
 
   // Check if user is a moderator on mount
@@ -53,7 +53,26 @@ export const App = () => {
     };
     setupRealtime();
 
-    return () => { statusConnection.current?.disconnect(); };
+    const fetchGameConfig = async () => {
+      try {
+        const res = await fetch('/api/config');
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.eventActive === 'boolean') {
+            setIsMarketOpen(data.eventActive);
+          }
+        }
+      } catch (e) {
+        console.error('[App] Config fetch failed:', e);
+      }
+    };
+    fetchGameConfig();
+    const intervalId = setInterval(fetchGameConfig, 10000);
+
+    return () => {
+      clearInterval(intervalId);
+      statusConnection.current?.disconnect();
+    };
   }, []);
   const [subredditName, setSubredditName] = useState<string>('Stonks');
 
@@ -107,12 +126,12 @@ export const App = () => {
         <div className="min-h-full game-content-wrapper">
           {currentView === 'market' && (
             <div className="view-enter">
-              <MarketView onStonkClick={handleStonkClick} subredditName={subredditName} />
+              <MarketView onStonkClick={handleStonkClick} subredditName={subredditName} isMarketOpen={isMarketOpen} />
             </div>
           )}
           {currentView === 'portfolio' && (
             <div className="view-enter">
-              <PortfolioView onStonkClick={handleStonkClick} />
+              <PortfolioView onStonkClick={handleStonkClick} isMarketOpen={isMarketOpen} />
             </div>
           )}
           {currentView === 'leaderboard' && (
@@ -127,7 +146,7 @@ export const App = () => {
           )}
           {currentView === 'detail' && selectedStonkId && (
             <div className="view-enter">
-              <StockDetailView stonkId={selectedStonkId} onBack={handleBackToMarket} />
+              <StockDetailView stonkId={selectedStonkId} onBack={handleBackToMarket} isMarketOpen={isMarketOpen} />
             </div>
           )}
         </div>

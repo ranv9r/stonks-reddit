@@ -12,6 +12,7 @@ export const AdminView = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
+    const [flairsEnabled, setFlairsEnabled] = useState(false);
 
     // Fetch all stocks
     const fetchStocks = useCallback(async () => {
@@ -33,6 +34,11 @@ export const AdminView = () => {
 
     useEffect(() => {
         fetchStocks();
+        // Fetch flair status
+        fetch('/api/mod/flair-status')
+            .then(res => res.json())
+            .then(data => setFlairsEnabled(data.flairsEnabled || false))
+            .catch(err => console.error('Failed to fetch flair status:', err));
     }, [fetchStocks]);
 
     // Create new stock using Devvit form
@@ -162,6 +168,30 @@ export const AdminView = () => {
         }
     };
 
+    /** Toggles user flairs on/off */
+    const handleToggleFlairs = async () => {
+        try {
+            setActionLoading(true);
+            const newState = !flairsEnabled;
+            const response = await fetch('/api/mod/toggle-flairs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: newState })
+            });
+            const data = await response.json();
+            if (data.success) {
+                setFlairsEnabled(newState);
+            } else {
+                setError(data.error || 'Failed to toggle flairs');
+            }
+        } catch (err) {
+            console.error('Toggle flairs error:', err);
+            setError('Failed to toggle flairs');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     // Format price from cents to dollars
     const formatPrice = (cents: number) => {
         return `$${(cents / 100).toFixed(2)}`;
@@ -208,6 +238,47 @@ export const AdminView = () => {
                     <RefreshIcon size={18} />
                     Reset Game
                 </button>
+
+                {/* Flair Toggle */}
+                <div className="flex items-center gap-3 px-4 py-2.5 bg-[#27272a] rounded-lg border border-[#3f3f46]">
+                    <span className="text-sm text-white">User Flairs</span>
+                    <button
+                        onClick={handleToggleFlairs}
+                        disabled={actionLoading}
+                        className={`relative w-12 h-6 rounded-full transition-colors disabled:opacity-50 ${flairsEnabled ? 'bg-[#FF4500]' : 'bg-[#3f3f46]'
+                            }`}
+                    >
+                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transform transition-transform ${flairsEnabled ? 'translate-x-6' : 'translate-x-0.5'
+                            }`} />
+                    </button>
+                    <span className={`text-xs ${flairsEnabled ? 'text-[#22c55e]' : 'text-[#71717a]'}`}>
+                        {flairsEnabled ? 'ON' : 'OFF'}
+                    </span>
+                    {flairsEnabled && (
+                        <button
+                            onClick={async () => {
+                                try {
+                                    setActionLoading(true);
+                                    const res = await fetch('/api/mod/update-flairs', { method: 'POST' });
+                                    const data = await res.json();
+                                    if (data.success) {
+                                        alert('✅ Flairs updated successfully!');
+                                    } else {
+                                        setError(data.error || 'Failed to update flairs');
+                                    }
+                                } catch (err) {
+                                    setError('Failed to update flairs');
+                                } finally {
+                                    setActionLoading(false);
+                                }
+                            }}
+                            disabled={actionLoading}
+                            className="px-3 py-1 bg-[#FF4500] hover:bg-[#ff5722] text-white text-xs font-medium rounded transition-colors disabled:opacity-50"
+                        >
+                            Update Now
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Stocks List */}

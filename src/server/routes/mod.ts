@@ -566,7 +566,7 @@ router.post('/internal/forms/stress-test', async (req, res) => {
     try {
         const values = req.body.values || req.body;
         const mode = (Array.isArray(values.mode) ? values.mode[0] : values.mode) || 'neutral';
-        const numBots = Math.min(Math.max(Number(values.bots) || 100, 10), 1000);
+        const numBots = Math.min(Math.max(Number(values.bots) || 100, 10), 20000);
         const duration = Math.min(Math.max(Number(values.minutes) || 5, 1), 60);
         const amountPerTrade = Math.min(Math.max(Number(values.amountPerTrade) || 100, 10), 10000) * 100; // Convert to cents
 
@@ -577,7 +577,7 @@ router.post('/internal/forms/stress-test', async (req, res) => {
         const predictions: { ticker: string; predicted: number }[] = [];
         const ticksPerMinute = 12; // 5-second interval = 12 ticks/min
         const totalTicks = duration * ticksPerMinute;
-        const tradesPerTick = 170;
+        const tradesPerTick = numBots;
         const totalTrades = totalTicks * tradesPerTick;
         const buyRatio = mode === 'bull' ? 0.9 : mode === 'bear' ? 0.1 : 0.5;
 
@@ -632,6 +632,79 @@ router.post('/internal/menu/stress/stop', async (_req, res) => {
     res.json({
         showToast: { text: '🛑 Stress Test Stopped' }
     });
+});
+
+// ============================================
+// FLAIR MANAGEMENT
+// ============================================
+
+/**
+ * GET /api/mod/flair-status - Get current flair enabled status.
+ */
+router.get('/api/mod/flair-status', async (_req, res) => {
+    try {
+        const config = await redisService.getGameConfig();
+        res.json({ flairsEnabled: config.flairsEnabled });
+    } catch (error) {
+        console.error('[Flair Status] Error:', error);
+        res.status(500).json({ error: 'Failed to get flair status' });
+    }
+});
+
+/**
+ * POST /api/mod/toggle-flairs - Toggle flairs enabled/disabled.
+ */
+router.post('/api/mod/toggle-flairs', async (req, res) => {
+    try {
+        const { userId } = context;
+        if (!userId) {
+            res.status(401).json({ error: 'Must be logged in' });
+            return;
+        }
+
+        const isMod = await isCurrentUserModerator();
+        if (!isMod) {
+            res.status(403).json({ error: 'Moderator access required' });
+            return;
+        }
+
+        const { enabled } = req.body;
+        await redisService.setGameConfig({ flairsEnabled: enabled });
+        console.log(`[Flair] Flairs ${enabled ? 'enabled' : 'disabled'} by ${userId}`);
+        res.json({ success: true, flairsEnabled: enabled });
+    } catch (error) {
+        console.error('[Toggle Flairs] Error:', error);
+        res.status(500).json({ error: 'Failed to toggle flairs' });
+    }
+});
+
+/**
+ * POST /api/mod/update-flairs - Manually trigger flair update.
+ */
+router.post('/api/mod/update-flairs', async (_req, res) => {
+    try {
+        const { userId } = context;
+        if (!userId) {
+            res.status(401).json({ error: 'Must be logged in' });
+            return;
+        }
+
+        const isMod = await isCurrentUserModerator();
+        if (!isMod) {
+            res.status(403).json({ error: 'Moderator access required' });
+            return;
+        }
+
+        // Import and run flair service
+        const flairService = await import('../services/flairService');
+        await flairService.updateAllUserFlairs();
+
+        console.log(`[Flair] Manual update triggered by ${userId}`);
+        res.json({ success: true, message: 'Flair update triggered' });
+    } catch (error) {
+        console.error('[Update Flairs] Error:', error);
+        res.status(500).json({ error: 'Failed to update flairs' });
+    }
 });
 
 export default router;

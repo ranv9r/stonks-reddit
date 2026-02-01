@@ -557,6 +557,7 @@ export async function getGameConfig(): Promise<GameConfig> {
         eventStartTime: data?.eventStartTime ? parseInt(data.eventStartTime) : null,
         tickInterval: parseInt(data?.tickInterval || '5000'),
         startingBalance: parseInt(data?.startingBalance || '1000000'),
+        flairsEnabled: data?.flairsEnabled === 'true',
     };
 }
 
@@ -577,6 +578,9 @@ export async function setGameConfig(config: Partial<GameConfig>): Promise<void> 
     }
     if (config.startingBalance !== undefined) {
         updates.startingBalance = String(config.startingBalance);
+    }
+    if (config.flairsEnabled !== undefined) {
+        updates.flairsEnabled = String(config.flairsEnabled);
     }
 
     if (Object.keys(updates).length > 0) {

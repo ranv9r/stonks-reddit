@@ -22,7 +22,10 @@
   },
   "permissions": {
     "redis": true,
-    "media": true
+    "media": true,
+    "reddit": [
+      "moderator"
+    ]
   },
   "scheduler": {
     "tasks": {
