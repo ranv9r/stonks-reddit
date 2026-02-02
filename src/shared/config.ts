@@ -115,8 +115,8 @@ export const MAX_PRICE_HISTORY_ENTRIES = 10000;
 /** Max chat messages to store per stonk */
 export const CHAT_LIMIT = 40;
 
-/** Chat cache TTL in seconds */
-export const CHAT_CACHE_TTL = 2;
+/** Chat cache TTL in seconds (Devvit minimum is 5 seconds) */
+export const CHAT_CACHE_TTL = 5;
 
 // ============================================
 // REDIS KEY PATTERNS

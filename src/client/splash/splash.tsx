@@ -8,6 +8,7 @@ import { createRoot } from 'react-dom/client';
 import { LogoChartIcon } from '../game/components/Icons';
 import stonksGuy from '../assets/stonks-guy.png';
 import { MARKET_PREVIEW_COUNT } from './splashConfig';
+import { usePortfolioStore, initializePortfolio, updatePortfolioFromTicker } from '../stores/usePortfolio';
 
 interface StonkPreview {
   ticker: string;
@@ -29,31 +30,18 @@ interface MarketTickPayload {
   timestamp: number;
 }
 
-interface PortfolioHolding {
-  stonkId: string;
-  quantity: number;
-  avgBuyPrice: number;
-}
-
-interface PortfolioData {
-  walletBalance: number;
-  totalValue: number;
-  holdings: PortfolioHolding[];
-}
-
 /**
  * Splash screen component - displays market preview and start trading button.
  * Two-column layout on all devices with large stonks guy and overlapping CTA.
  */
 export const Splash = () => {
   const [stonks, setStonks] = useState<StonkPreview[]>([]);
-  const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
+  const portfolio = usePortfolioStore(); // Use shared store!
   const [isMarketOpen, setIsMarketOpen] = useState(true);
   const [loading, setLoading] = useState(true);
 
   const tickerConnection = useRef<{ disconnect: () => Promise<void> } | null>(null);
   const statusConnection = useRef<{ disconnect: () => Promise<void> } | null>(null);
-  const holdingsRef = useRef<PortfolioHolding[]>([]);
 
   useEffect(() => {
     fetchMarketPreview();
@@ -77,17 +65,8 @@ export const Splash = () => {
             }));
             setStonks(updatedStonks);
 
-            // Update portfolio value locally using new prices (no re-fetch)
-            const currentHoldings = holdingsRef.current;
-            if (currentHoldings.length === 0) return;
-
-            let newTotalValue = 0;
-            for (const holding of currentHoldings) {
-              const stonkData = payload.stonks.find(s => s.id === holding.stonkId);
-              const price = stonkData?.currentPrice ?? holding.avgBuyPrice;
-              newTotalValue += holding.quantity * price;
-            }
-            setPortfolio(prev => prev ? { ...prev, totalValue: newTotalValue } : prev);
+            // Update shared portfolio store with new prices (syncs all screens!)
+            updatePortfolioFromTicker(payload.stonks);
           },
         });
 
@@ -149,14 +128,8 @@ export const Splash = () => {
       const res = await fetch('/api/portfolio');
       if (res.ok) {
         const data = await res.json();
-        // Store holdings so we can update values locally with realtime prices
-        const holdings: PortfolioHolding[] = (data.holdings || []).map((h: any) => ({
-          stonkId: h.stonkId,
-          quantity: h.quantity,
-          avgBuyPrice: h.avgBuyPrice || h.currentPrice,
-        }));
-        holdingsRef.current = holdings; // Update ref for realtime callback
-        setPortfolio({ walletBalance: data.walletBalance, totalValue: data.totalValue, holdings });
+        // Initialize shared portfolio store (syncs all screens!)
+        initializePortfolio(data);
       }
     } catch (err) {
       console.error('Failed to fetch portfolio:', err);

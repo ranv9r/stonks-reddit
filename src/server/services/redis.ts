@@ -93,9 +93,18 @@ export function getStonkFromCache(stonkId: string): StonkState | null {
 
 /**
  * Flushes all pending buy/sell volumes to Redis.
- * Call this at the END of each scheduler tick.
+ * NOTE: Regular trades now write directly to Redis via addBuyVolume/addSellVolume.
+ * This function is kept for stress test bots which may still use in-memory accumulators.
  */
 export async function flushPendingVolumes(): Promise<void> {
+    const buyCount = pendingBuyVolume.size;
+    const sellCount = pendingSellVolume.size;
+
+    // Skip if nothing pending (normal case since trades write directly now)
+    if (buyCount === 0 && sellCount === 0) {
+        return;
+    }
+
     const flushPromises: Promise<number>[] = [];
 
     // Flush buy volumes
@@ -118,16 +127,14 @@ export async function flushPendingVolumes(): Promise<void> {
 
     await Promise.all(flushPromises);
 
-    const buyCount = pendingBuyVolume.size;
-    const sellCount = pendingSellVolume.size;
+    // Log what was flushed (stress test volumes)
+    const buyDetails = Array.from(pendingBuyVolume.entries()).map(([id, amt]) => `${id}:$${amt / 100}`).join(', ');
+    const sellDetails = Array.from(pendingSellVolume.entries()).map(([id, shares]) => `${id}:${shares / 10000}sh`).join(', ');
+    console.log(`[Cache] Flushed stress test volumes: buys=[${buyDetails}], sells=[${sellDetails}]`);
 
     // Clear accumulators
     pendingBuyVolume.clear();
     pendingSellVolume.clear();
-
-    if (buyCount > 0 || sellCount > 0) {
-        console.log(`[Cache] Flushed volumes: ${buyCount} buy keys, ${sellCount} sell keys`);
-    }
 }
 
 // ============================================
@@ -367,23 +374,22 @@ export async function deleteStonk(stonkId: string): Promise<boolean> {
 // ============================================
 
 /**
- * Adds buy volume to the local accumulator (0 Redis calls).
- * Volume is flushed to Redis by flushPendingVolumes() at end of tick.
+ * Adds buy volume directly to Redis (reliable, survives restarts).
+ * Previously used in-memory accumulator, but that caused data loss on hot reload.
  */
-export function addBuyVolume(stonkId: string, amount: number): void {
-    const current = pendingBuyVolume.get(stonkId) || 0;
-    pendingBuyVolume.set(stonkId, current + amount);
+export async function addBuyVolume(stonkId: string, amount: number): Promise<void> {
+    await redis.hIncrBy(REDIS_KEYS.stonkBatch(stonkId), 'buyVolume', amount);
+    console.log(`[DEBUG] addBuyVolume: ${stonkId} += $${amount / 100} (written to Redis)`);
 }
 
 /**
- * Adds sell volume to the local accumulator (0 Redis calls).
+ * Adds sell volume directly to Redis (reliable, survives restarts).
  * Stores as scaled integer to avoid floating point issues.
- * Volume is flushed to Redis by flushPendingVolumes() at end of tick.
  */
-export function addSellVolume(stonkId: string, shares: number): void {
+export async function addSellVolume(stonkId: string, shares: number): Promise<void> {
     const scaledShares = Math.round(shares * 10000);
-    const current = pendingSellVolume.get(stonkId) || 0;
-    pendingSellVolume.set(stonkId, current + scaledShares);
+    await redis.hIncrBy(REDIS_KEYS.stonkBatch(stonkId), 'sellVolume', scaledShares);
+    console.log(`[DEBUG] addSellVolume: ${stonkId} += ${shares} shares (written to Redis)`);
 }
 
 /**
@@ -421,9 +427,14 @@ export async function getAndResetBatch(
         // Unscale the sell volume
         const sellVolume = parseInt(batch?.sellVolume || '0') / 10000;
 
+        if (buyVolume > 0 || sellVolume > 0) {
+            console.log(`[DEBUG] getAndResetBatch ${stonkId}: buyVol=$${buyVolume / 100}, sellVol=${sellVolume}sh`);
+        }
+
         return { buyVolume, sellVolume };
     } catch (e) {
         // If rename fails (key doesn't exist aka no volume), ensure key exists and return 0
+        console.log(`[DEBUG] getAndResetBatch ${stonkId}: no batch (rename failed)`);
         await redis.hSet(key, {
             buyVolume: '0',
             sellVolume: '0',

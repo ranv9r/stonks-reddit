@@ -1,11 +1,13 @@
 /**
  * Portfolio View - Displays user's holdings and P/L.
  * Uses global_ticker realtime channel to update prices.
+ * Also syncs with shared portfolio store for splash screen.
  */
 
 import { useState, useEffect, useRef } from 'react';
 import { connectRealtime } from '@devvit/web/client';
 import { TrendingUpIcon, TrendingDownIcon, CoinIcon } from '../components/Icons';
+import { updatePortfolioFromTicker, initializePortfolio } from '../../stores/usePortfolio';
 
 interface Holding {
     stonkId: string;
@@ -99,6 +101,9 @@ export const PortfolioView = ({ onStonkClick, isMarketOpen = true }: PortfolioVi
                                 holdings: updatedHoldings,
                             };
                         });
+
+                        // Sync shared portfolio store (for splash screen)
+                        updatePortfolioFromTicker(payload.stonks);
                     },
                     onConnect: () => console.log('[PortfolioView] Connected to global_ticker'),
                     onDisconnect: () => console.log('[PortfolioView] Disconnected from global_ticker'),
@@ -122,6 +127,8 @@ export const PortfolioView = ({ onStonkClick, isMarketOpen = true }: PortfolioVi
             if (!res.ok) throw new Error('Failed to fetch portfolio');
             const data = await res.json();
             setPortfolio(data);
+            // Sync shared portfolio store (for splash screen)
+            initializePortfolio(data);
             setError(null);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unknown error');

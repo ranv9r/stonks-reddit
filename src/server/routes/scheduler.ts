@@ -30,6 +30,13 @@ router.post('/internal/scheduler/price-tick', async (_req, res) => {
 
         console.log(`[Price Tick] Starting at ${new Date().toISOString()}`);
 
+        // CRITICAL: Flush accumulated volumes to Redis BEFORE resolving batches
+        // This ensures trades from this tick are included in the current batch resolution
+        await redisService.flushPendingVolumes();
+
+        // Flush accumulated spend limit updates to Redis
+        await redisService.flushSpendingToRedis();
+
         await tradingEngine.resolveBatches();
 
         // Refresh stonk cache for optimized trade lookups
@@ -37,12 +44,6 @@ router.post('/internal/scheduler/price-tick', async (_req, res) => {
 
         // Run stress test tick if active
         await stressTestService.tick();
-
-        // Flush accumulated volumes to Redis
-        await redisService.flushPendingVolumes();
-
-        // Flush accumulated spend limit updates to Redis
-        await redisService.flushSpendingToRedis();
 
         // Update Tier 1 for all stonks
         const stonkIds = await stockTickerService.getAllStonkIds();
@@ -66,7 +67,9 @@ router.post('/internal/scheduler/price-tick', async (_req, res) => {
             timestamp: Date.now(),
         };
         await realtime.send('global_ticker', payload);
-        console.log(`[Price Tick] Broadcast to global_ticker`);
+        // Detailed log of what global_ticker is sending
+        const priceLog = payload.stonks.map(s => `${s.ticker}: $${(s.currentPrice / 100).toFixed(2)}`).join(', ');
+        console.log(`[Price Tick] global_ticker payload: [${priceLog}] @ ${new Date(payload.timestamp).toISOString()}`);
 
         console.log(`[Price Tick] Completed at ${new Date().toISOString()}`);
         res.status(200).json({ status: 'ok' });

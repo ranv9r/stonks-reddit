@@ -101,8 +101,8 @@ export async function executeBuy(
     const currentPrice = stonk.currentPrice;
     const stockDistributed = actualAmount / currentPrice;
 
-    // 2. Add to Batch (local accumulator, 0 Redis calls)
-    redisService.addBuyVolume(stonk.id, actualAmount);
+    // 2. Add to Batch (direct Redis write for reliability)
+    await redisService.addBuyVolume(stonk.id, actualAmount);
 
     // 3. Build updated portfolio
     const updatedPortfolio: Portfolio = { ...user.portfolio };
@@ -194,8 +194,8 @@ export async function executeSell(
     const currentPrice = stonk.currentPrice;
     const actualValue = actualQuantity * currentPrice;
 
-    // 2. Add to Batch (local accumulator, 0 Redis calls)
-    redisService.addSellVolume(stonkId, actualQuantity);
+    // 2. Add to Batch (direct Redis write for reliability)
+    await redisService.addSellVolume(stonkId, actualQuantity);
 
     // 3. Build updated portfolio (Remove Shares)
     const updatedPortfolio: Portfolio = { ...user.portfolio };
