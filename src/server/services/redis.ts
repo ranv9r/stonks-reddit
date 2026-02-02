@@ -28,6 +28,80 @@ import type {
 } from '../../shared/types/stonks';
 
 // ============================================
+// IN-MEMORY CACHE & ACCUMULATORS
+// Reduces Redis calls by caching stonk data and batching volume updates
+// ============================================
+
+/** In-memory cache of stonk states, refreshed every tick */
+const stonkCache: Map<string, StonkState> = new Map();
+
+/** Pending buy volume to flush to Redis (accumulated locally) */
+const pendingBuyVolume: Map<string, number> = new Map();
+
+/** Pending sell volume to flush to Redis (accumulated locally, scaled by 10000) */
+const pendingSellVolume: Map<string, number> = new Map();
+
+/**
+ * Refreshes the in-memory stonk cache from Redis.
+ * Call this at the START of each scheduler tick.
+ */
+export async function refreshStonkCache(): Promise<void> {
+    const stonks = await getAllStonks();
+    stonkCache.clear();
+    for (const stonk of stonks) {
+        stonkCache.set(stonk.id, stonk);
+    }
+    console.log(`[Cache] Refreshed ${stonks.length} stonks`);
+}
+
+/**
+ * Gets a stonk from the in-memory cache (0 Redis calls).
+ * Falls back to Redis if not cached.
+ */
+export function getStonkFromCache(stonkId: string): StonkState | null {
+    return stonkCache.get(stonkId) || null;
+}
+
+/**
+ * Flushes all pending buy/sell volumes to Redis.
+ * Call this at the END of each scheduler tick.
+ */
+export async function flushPendingVolumes(): Promise<void> {
+    const flushPromises: Promise<number>[] = [];
+
+    // Flush buy volumes
+    for (const [stonkId, amount] of pendingBuyVolume.entries()) {
+        if (amount > 0) {
+            flushPromises.push(
+                redis.hIncrBy(REDIS_KEYS.stonkBatch(stonkId), 'buyVolume', amount)
+            );
+        }
+    }
+
+    // Flush sell volumes (already scaled)
+    for (const [stonkId, scaledShares] of pendingSellVolume.entries()) {
+        if (scaledShares > 0) {
+            flushPromises.push(
+                redis.hIncrBy(REDIS_KEYS.stonkBatch(stonkId), 'sellVolume', scaledShares)
+            );
+        }
+    }
+
+    await Promise.all(flushPromises);
+
+    const buyCount = pendingBuyVolume.size;
+    const sellCount = pendingSellVolume.size;
+
+    // Clear accumulators
+    pendingBuyVolume.clear();
+    pendingSellVolume.clear();
+
+    if (buyCount > 0 || sellCount > 0) {
+        console.log(`[Cache] Flushed volumes: ${buyCount} buy keys, ${sellCount} sell keys`);
+    }
+}
+
+// ============================================
 // STONK OPERATIONS
 // ============================================
 
@@ -264,19 +338,23 @@ export async function deleteStonk(stonkId: string): Promise<boolean> {
 // ============================================
 
 /**
- * Adds buy volume to the current batch.
+ * Adds buy volume to the local accumulator (0 Redis calls).
+ * Volume is flushed to Redis by flushPendingVolumes() at end of tick.
  */
-export async function addBuyVolume(stonkId: string, amount: number): Promise<number> {
-    return await redis.hIncrBy(REDIS_KEYS.stonkBatch(stonkId), 'buyVolume', amount);
+export function addBuyVolume(stonkId: string, amount: number): void {
+    const current = pendingBuyVolume.get(stonkId) || 0;
+    pendingBuyVolume.set(stonkId, current + amount);
 }
 
 /**
- * Adds sell volume to the current batch (in shares, not cents).
+ * Adds sell volume to the local accumulator (0 Redis calls).
+ * Stores as scaled integer to avoid floating point issues.
+ * Volume is flushed to Redis by flushPendingVolumes() at end of tick.
  */
-export async function addSellVolume(stonkId: string, shares: number): Promise<number> {
-    // Store as scaled integer to avoid floating point issues
+export function addSellVolume(stonkId: string, shares: number): void {
     const scaledShares = Math.round(shares * 10000);
-    return await redis.hIncrBy(REDIS_KEYS.stonkBatch(stonkId), 'sellVolume', scaledShares);
+    const current = pendingSellVolume.get(stonkId) || 0;
+    pendingSellVolume.set(stonkId, current + scaledShares);
 }
 
 /**

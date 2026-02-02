@@ -32,8 +32,14 @@ router.post('/internal/scheduler/price-tick', async (_req, res) => {
 
         await tradingEngine.resolveBatches();
 
+        // Refresh stonk cache for optimized trade lookups
+        await redisService.refreshStonkCache();
+
         // Run stress test tick if active
         await stressTestService.tick();
+
+        // Flush accumulated volumes to Redis
+        await redisService.flushPendingVolumes();
 
         // Update Tier 1 for all stonks
         const stonkIds = await stockTickerService.getAllStonkIds();

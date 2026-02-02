@@ -23,9 +23,7 @@
   "permissions": {
     "redis": true,
     "media": true,
-    "reddit": [
-      "moderator"
-    ]
+    "reddit": true
   },
   "scheduler": {
     "tasks": {

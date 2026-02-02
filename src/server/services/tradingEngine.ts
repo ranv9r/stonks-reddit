@@ -81,20 +81,15 @@ export async function executeBuy(
         }
     }
 
-    // 1. Get User & Stonk
+    // 1. Get User & Stonk (stonk from cache for optimization)
     const user = await redisService.getOrCreateUser(userId, startingBalance);
-    const stonk = await redisService.getStonk(stonkId);
+    const stonk = redisService.getStonkFromCache(stonkId) || await redisService.getStonk(stonkId);
 
     if (!stonk) return { success: false, message: 'Stonk not found.' };
     if (!stonk.active) return { success: false, message: 'Market closed for this stonk.' };
 
-    // 2. Cooldown & Balance Check
-    const allowedSpend = await getUserSpendLimit(userId, stonkId);
-    if (!allowedSpend.allowed) {
-        return { success: false, message: `Spend limit reached. Wait for cooldown.` };
-    }
-
-    actualAmount = Math.min(actualAmount, user.walletBalance, allowedSpend.remaining);
+    // 2. Balance Check (reuse limitCheck.remaining from earlier - no extra Redis call)
+    actualAmount = Math.min(actualAmount, user.walletBalance, limitCheck.remaining);
 
     if (actualAmount <= 0) {
         return { success: false, message: 'Insufficient funds or spend limit reached.' };
@@ -106,8 +101,8 @@ export async function executeBuy(
     const currentPrice = stonk.currentPrice;
     const stockDistributed = actualAmount / currentPrice;
 
-    // 2. Add to Batch (Accumulate Volume for next tick)
-    await redisService.addBuyVolume(stonk.id, actualAmount);
+    // 2. Add to Batch (local accumulator, 0 Redis calls)
+    redisService.addBuyVolume(stonk.id, actualAmount);
 
     // 3. Build updated portfolio
     const updatedPortfolio: Portfolio = { ...user.portfolio };
@@ -161,8 +156,8 @@ export async function executeSell(
     // Get or create user
     const user = await redisService.getOrCreateUser(userId, startingBalance);
 
-    // Check stonk exists and is active
-    const stonk = await redisService.getStonk(stonkId);
+    // Check stonk exists and is active (from cache for optimization)
+    const stonk = redisService.getStonkFromCache(stonkId) || await redisService.getStonk(stonkId);
     if (!stonk || !stonk.active) {
         return {
             success: false,
@@ -199,8 +194,8 @@ export async function executeSell(
     const currentPrice = stonk.currentPrice;
     const actualValue = actualQuantity * currentPrice;
 
-    // 2. Add to Batch (Accumulate Volume for next tick)
-    await redisService.addSellVolume(stonkId, actualQuantity);
+    // 2. Add to Batch (local accumulator, 0 Redis calls)
+    redisService.addSellVolume(stonkId, actualQuantity);
 
     // 3. Build updated portfolio (Remove Shares)
     const updatedPortfolio: Portfolio = { ...user.portfolio };
