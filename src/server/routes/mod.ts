@@ -549,8 +549,9 @@ router.post('/internal/menu/stress/start', async (_req, res) => {
                         ],
                         defaultValue: ['bull']
                     },
-                    { type: 'number', name: 'bots', label: 'Number of Bots', defaultValue: 100 },
-                    { type: 'number', name: 'minutes', label: 'Duration (Minutes)', defaultValue: 5 },
+                    { type: 'number', name: 'tps', label: 'Trades Per Second (TPS)', defaultValue: 50 },
+                    { type: 'number', name: 'concurrent', label: 'Max Concurrent Trades', defaultValue: 10 },
+                    { type: 'number', name: 'seconds', label: 'Duration (Seconds)', defaultValue: 20 },
                     { type: 'number', name: 'amountPerTrade', label: 'Fixed $ per Trade', defaultValue: 100 }
                 ]
             }
@@ -560,35 +561,32 @@ router.post('/internal/menu/stress/start', async (_req, res) => {
 
 /**
  * POST /internal/forms/stress-test - Handle stress test form submission.
- * Calculates predicted final price using AMM formula as a unit test.
+ * Now with rate limiting: tradesPerSecond and maxConcurrent.
  */
 router.post('/internal/forms/stress-test', async (req, res) => {
     try {
         const values = req.body.values || req.body;
         const mode = (Array.isArray(values.mode) ? values.mode[0] : values.mode) || 'neutral';
-        const numBots = Math.min(Math.max(Number(values.bots) || 100, 10), 20000);
-        const duration = Math.min(Math.max(Number(values.minutes) || 5, 1), 60);
-        const amountPerTrade = Math.min(Math.max(Number(values.amountPerTrade) || 100, 10), 10000) * 100; // Convert to cents
+
+        // Rate-limiting params (no upper limits - user can stress test as hard as they want)
+        const tradesPerSecond = Math.max(Number(values.tps) || 50, 1);
+        const maxConcurrent = Math.max(Number(values.concurrent) || 10, 1);
+        const durationSeconds = Math.max(Number(values.seconds) || 20, 1);
+        const amountPerTrade = Math.max(Number(values.amountPerTrade) || 100, 1) * 100; // cents
 
         // Get all stonks for price prediction
         const stonks = await redisService.getAllStonks();
 
         // Calculate predicted price for each stonk using AMM formula
         const predictions: { ticker: string; predicted: number }[] = [];
-        const ticksPerMinute = 12; // 5-second interval = 12 ticks/min
-        const totalTicks = duration * ticksPerMinute;
-        const tradesPerTick = numBots;
+        const totalTicks = Math.ceil(durationSeconds / 5); // 5-second ticks
+        const tradesPerTick = tradesPerSecond * 5;
         const totalTrades = totalTicks * tradesPerTick;
         const buyRatio = mode === 'bull' ? 0.9 : mode === 'bear' ? 0.1 : 0.5;
 
         for (const s of stonks) {
-            // Estimate net cash flow into the AMM
             const totalBuyCash = totalTrades * buyRatio * amountPerTrade;
             const totalSellShares = totalTrades * (1 - buyRatio) * (amountPerTrade / s.currentPrice);
-
-            // Simplified AMM prediction: price = K / shares
-            // After buys: xReal increases, yReal decreases (price goes up)
-            // After sells: xReal decreases, yReal increases (price goes down)
             const currentK = (s.xVirt + (s.xReal || 0)) * (s.yVirt + (s.yReal || 0));
             const netCashInflux = totalBuyCash - (totalSellShares * s.currentPrice);
             const newXReal = (s.xReal || 0) + netCashInflux;
@@ -597,17 +595,22 @@ router.post('/internal/forms/stress-test', async (req, res) => {
 
             predictions.push({
                 ticker: s.ticker,
-                predicted: Math.round(predictedPrice) / 100 // Convert cents to dollars
+                predicted: Math.round(predictedPrice) / 100
             });
         }
 
-        // Start the stress test
-        await stressTestService.startStressTest(numBots, duration, mode, amountPerTrade);
+        // Start the stress test with seconds-based duration
+        await stressTestService.startStressTest(
+            tradesPerSecond,
+            maxConcurrent,
+            durationSeconds,
+            mode,
+            amountPerTrade
+        );
 
-        // Build prediction string
         const predictionStr = predictions.map(p => `${p.ticker}: $${p.predicted.toFixed(2)}`).join(', ');
 
-        console.log(`[Stress] ✅ Started: ${numBots} bots, ${duration} mins, mode=${mode}`);
+        console.log(`[Stress] ✅ Started: ${tradesPerSecond} TPS, max ${maxConcurrent} concurrent, ${durationSeconds}s, mode=${mode}`);
         console.log(`[Stress] 📊 Predicted prices: ${predictionStr}`);
 
         res.json({

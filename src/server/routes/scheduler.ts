@@ -37,10 +37,15 @@ router.post('/internal/scheduler/price-tick', async (_req, res) => {
         // Flush accumulated spend limit updates to Redis
         await redisService.flushSpendingToRedis();
 
+        // Step 1: Resolve all pending batches (updates prices in Redis)
+        console.log(`[Price Tick] Step 1: Resolving batches...`);
         await tradingEngine.resolveBatches();
+        console.log(`[Price Tick] Step 1: Batches resolved.`);
 
-        // Refresh stonk cache for optimized trade lookups
+        // Step 2: AFTER batches are resolved, refresh the cache with NEW prices
+        console.log(`[Price Tick] Step 2: Refreshing cache...`);
         await redisService.refreshStonkCache();
+        console.log(`[Price Tick] Step 2: Cache refreshed.`);
 
         // Run stress test tick if active
         await stressTestService.tick();

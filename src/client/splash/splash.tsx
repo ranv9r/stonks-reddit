@@ -8,7 +8,6 @@ import { createRoot } from 'react-dom/client';
 import { LogoChartIcon } from '../game/components/Icons';
 import stonksGuy from '../assets/stonks-guy.png';
 import { MARKET_PREVIEW_COUNT } from './splashConfig';
-import { usePortfolioStore, initializePortfolio, updatePortfolioFromTicker } from '../stores/usePortfolio';
 
 interface StonkPreview {
   ticker: string;
@@ -30,33 +29,49 @@ interface MarketTickPayload {
   timestamp: number;
 }
 
+interface PortfolioHolding {
+  stonkId: string;
+  quantity: number;
+  avgBuyPrice: number;
+}
+
+interface PortfolioData {
+  walletBalance: number;
+  totalValue: number;
+  holdings: PortfolioHolding[];
+}
+
 /**
  * Splash screen component - displays market preview and start trading button.
  * Two-column layout on all devices with large stonks guy and overlapping CTA.
+ * Portfolio updates in sync with global_ticker realtime channel (same as game).
  */
 export const Splash = () => {
   const [stonks, setStonks] = useState<StonkPreview[]>([]);
-  const portfolio = usePortfolioStore(); // Use shared store!
+  const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
   const [isMarketOpen, setIsMarketOpen] = useState(true);
   const [loading, setLoading] = useState(true);
 
   const tickerConnection = useRef<{ disconnect: () => Promise<void> } | null>(null);
   const statusConnection = useRef<{ disconnect: () => Promise<void> } | null>(null);
+  // Ref to track holdings for realtime updates (avoids stale closure)
+  const holdingsRef = useRef<PortfolioHolding[]>([]);
 
   useEffect(() => {
     fetchMarketPreview();
     fetchPortfolio();
     fetchGameConfig();
 
-    // Realtime handles all updates (no polling needed)
-
+    // Realtime handles all updates (same pattern as market_status)
     const setupRealtime = async () => {
       try {
-        // 1. Subscribe to Ticker Updates
+        // 1. Subscribe to Ticker Updates - updates portfolio value locally
         tickerConnection.current = await connectRealtime({
           channel: 'global_ticker',
           onMessage: (data: unknown) => {
             const payload = data as MarketTickPayload;
+
+            // Update stonk prices
             const updatedStonks = payload.stonks.map(s => ({
               ticker: s.ticker,
               icon: s.icon,
@@ -65,8 +80,17 @@ export const Splash = () => {
             }));
             setStonks(updatedStonks);
 
-            // Update shared portfolio store with new prices (syncs all screens!)
-            updatePortfolioFromTicker(payload.stonks);
+            // Update portfolio value using latest prices from realtime
+            const currentHoldings = holdingsRef.current;
+            if (currentHoldings.length > 0) {
+              let newTotalValue = 0;
+              for (const holding of currentHoldings) {
+                const stonkData = payload.stonks.find(s => s.id === holding.stonkId);
+                const price = stonkData?.currentPrice ?? holding.avgBuyPrice;
+                newTotalValue += holding.quantity * price;
+              }
+              setPortfolio(prev => prev ? { ...prev, totalValue: newTotalValue } : prev);
+            }
           },
         });
 
@@ -128,8 +152,14 @@ export const Splash = () => {
       const res = await fetch('/api/portfolio');
       if (res.ok) {
         const data = await res.json();
-        // Initialize shared portfolio store (syncs all screens!)
-        initializePortfolio(data);
+        // Store holdings in ref for realtime callback + in state for display
+        const holdings: PortfolioHolding[] = (data.holdings || []).map((h: any) => ({
+          stonkId: h.stonkId,
+          quantity: h.quantity,
+          avgBuyPrice: h.avgBuyPrice || h.currentPrice,
+        }));
+        holdingsRef.current = holdings;
+        setPortfolio({ walletBalance: data.walletBalance, totalValue: data.totalValue, holdings });
       }
     } catch (err) {
       console.error('Failed to fetch portfolio:', err);

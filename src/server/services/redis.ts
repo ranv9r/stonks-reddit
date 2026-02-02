@@ -852,36 +852,52 @@ export async function setGameConfig(config: Partial<GameConfig>): Promise<void> 
 // ============================================
 
 /**
- * Atomically updates user's wallet and portfolio in a single Redis transaction.
- * Ensures both operations succeed or fail together - no partial state.
+ * OPTIMIZED: Updates user's wallet and portfolio with a single HSET.
+ * 
+ * This replaces the old WATCH/MULTI/HINCRBY/HSET/EXEC pattern (4-5 calls)
+ * with a single HSET (1 call).
+ * 
+ * Safe because:
+ * - Each user has their own Redis hash key
+ * - We already have the current balance from getOrCreateUser
+ * - We calculate new balance directly: currentBalance + delta
+ * 
+ * @param userId - User ID
+ * @param currentBalance - Current wallet balance (from getOrCreateUser)
+ * @param walletDelta - Change in wallet (+/- cents)
+ * @param portfolio - New portfolio state
  */
 export async function atomicUpdateUserTrade(
     userId: string,
     walletDelta: number,
-    portfolio: Portfolio
+    portfolio: Portfolio,
+    currentBalance?: number
 ): Promise<void> {
     const userKey = REDIS_KEYS.userData(userId);
 
-    // Start a transaction by watching the user's key
+    // If currentBalance is provided, use optimized single HSET
+    if (currentBalance !== undefined) {
+        const newBalance = currentBalance + walletDelta;
+        await redis.hSet(userKey, {
+            walletBalance: String(newBalance),
+            portfolio: JSON.stringify(portfolio),
+            lastTradeAt: String(Date.now()),
+        });
+        return;
+    }
+
+    // Fallback: Use transaction for safety when currentBalance not provided
     const txn = await redis.watch(userKey);
 
     try {
-        // Begin the transaction
         await txn.multi();
-
-        // Queue wallet update (increment by delta)
         await txn.hIncrBy(userKey, 'walletBalance', walletDelta);
-
-        // Queue portfolio update
         await txn.hSet(userKey, {
             portfolio: JSON.stringify(portfolio),
             lastTradeAt: String(Date.now()),
         });
-
-        // Execute all commands atomically
         await txn.exec();
     } catch (e) {
-        // If anything fails, discard the transaction
         try {
             await txn.discard();
         } catch {

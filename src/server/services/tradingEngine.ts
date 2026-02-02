@@ -125,8 +125,8 @@ export async function executeBuy(
         };
     }
 
-    // 4. Atomically update wallet and portfolio (deduct cash, add shares)
-    await redisService.atomicUpdateUserTrade(userId, -actualAmount, updatedPortfolio);
+    // 4. Update wallet and portfolio (OPTIMIZED: single HSET with currentBalance)
+    await redisService.atomicUpdateUserTrade(userId, -actualAmount, updatedPortfolio, user.walletBalance);
 
     // 5. Record spending for cooldown (local accumulator, 0 Redis calls!)
     redisService.recordSpendingLocal(userId, stonkId, actualAmount);
@@ -157,7 +157,10 @@ export async function executeSell(
     const user = await redisService.getOrCreateUser(userId, startingBalance);
 
     // Check stonk exists and is active (from cache for optimization)
-    const stonk = redisService.getStonkFromCache(stonkId) || await redisService.getStonk(stonkId);
+    const cachedStonk = redisService.getStonkFromCache(stonkId);
+    const stonk = cachedStonk || await redisService.getStonk(stonkId);
+    console.log(`[DEBUG] executeSell getStonk: stonkId=${stonkId}, fromCache=${!!cachedStonk}, price=${stonk?.currentPrice} (${(stonk?.currentPrice || 0) / 100}$)`);
+
     if (!stonk || !stonk.active) {
         return {
             success: false,
@@ -194,6 +197,9 @@ export async function executeSell(
     const currentPrice = stonk.currentPrice;
     const actualValue = actualQuantity * currentPrice;
 
+    // DEBUG: Trace sell calculation
+    console.log(`[DEBUG] executeSell: userId=${userId}, stonk=${stonkId}, qty=${actualQuantity.toFixed(4)}, price=${currentPrice} (${currentPrice / 100}$), value=${actualValue} (${actualValue / 100}$), userBalance=${user.walletBalance}`);
+
     // 2. Add to Batch (direct Redis write for reliability)
     await redisService.addSellVolume(stonkId, actualQuantity);
 
@@ -209,8 +215,8 @@ export async function executeSell(
         delete updatedPortfolio[stonkId];
     }
 
-    // 4. Atomically update wallet and portfolio (credit cash, remove shares)
-    await redisService.atomicUpdateUserTrade(userId, Math.round(actualValue), updatedPortfolio);
+    // 4. Update wallet and portfolio (OPTIMIZED: single HSET with currentBalance)
+    await redisService.atomicUpdateUserTrade(userId, Math.round(actualValue), updatedPortfolio, user.walletBalance);
 
     // 5. Record spending: SKIPPED for Sell.
     // Sells do not consume the Buy limit.
