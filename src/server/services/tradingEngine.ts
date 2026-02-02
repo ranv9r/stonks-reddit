@@ -63,8 +63,8 @@ export async function executeBuy(
     amount: number, // Amount in coins (cents)
     startingBalance: number
 ): Promise<{ success: boolean; message: string; actualAmount?: number }> {
-    // Check cooldown limit first
-    const limitCheck = await redisService.checkSpendLimit(userId, stonkId, amount);
+    // Check cooldown limit first (uses in-memory cache, 0 Redis calls on cache hit)
+    const limitCheck = await redisService.checkSpendLimitCached(userId, stonkId, amount);
 
     let actualAmount = amount;
     if (!limitCheck.allowed) {
@@ -128,8 +128,8 @@ export async function executeBuy(
     // 4. Atomically update wallet and portfolio (deduct cash, add shares)
     await redisService.atomicUpdateUserTrade(userId, -actualAmount, updatedPortfolio);
 
-    // 5. Record spending for cooldown
-    await redisService.recordSpending(userId, stonkId, actualAmount);
+    // 5. Record spending for cooldown (local accumulator, 0 Redis calls!)
+    redisService.recordSpendingLocal(userId, stonkId, actualAmount);
 
     const message = actualAmount < amount
         ? `Partial buy for $${(actualAmount / 100).toFixed(2)} (${stockDistributed.toFixed(4)} shares).`

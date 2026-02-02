@@ -41,6 +41,35 @@ const pendingBuyVolume: Map<string, number> = new Map();
 /** Pending sell volume to flush to Redis (accumulated locally, scaled by 10000) */
 const pendingSellVolume: Map<string, number> = new Map();
 
+/** 
+ * In-memory spend limit tracking to reduce Redis calls.
+ * Key format: `userId:stonkId` 
+ * Value: { spent: amount spent this bucket, bucket: time bucket number }
+ */
+interface SpendTracker {
+    spent: number;
+    bucket: number;
+}
+const spendLimitCache: Map<string, SpendTracker> = new Map();
+
+/** Pending spend updates to flush to Redis */
+const pendingSpendUpdates: Map<string, { amount: number; bucket: number }> = new Map();
+
+/**
+ * Gets the current time bucket for spend limit tracking.
+ * Buckets change every COOLDOWN_WINDOW_SECONDS (60 seconds).
+ */
+function getCurrentSpendBucket(): number {
+    return Math.floor(Date.now() / (COOLDOWN_WINDOW_SECONDS * 1000));
+}
+
+/**
+ * Gets the cache key for spend limit tracking.
+ */
+function getSpendCacheKey(userId: string, stonkId: string): string {
+    return `${userId}:${stonkId}`;
+}
+
 /**
  * Refreshes the in-memory stonk cache from Redis.
  * Call this at the START of each scheduler tick.
@@ -488,6 +517,147 @@ export async function getUserSpending(
         spent,
         remaining: Math.max(0, USER_SPEND_LIMIT - spent),
     };
+}
+
+// ============================================
+// CACHED SPEND LIMIT OPERATIONS (Optimized)
+// Uses in-memory tracking, syncs to Redis at tick boundaries
+// ============================================
+
+/**
+ * Helper function to evaluate spend limit from a spent value.
+ */
+function evaluateSpendLimit(spent: number, requestedAmount: number): SpendLimitResult {
+    const remaining = USER_SPEND_LIMIT - spent;
+
+    if (requestedAmount <= remaining) {
+        return {
+            allowed: true,
+            remaining,
+            spent,
+        };
+    }
+
+    // Partial allowance - cap to remaining
+    if (remaining > 0) {
+        return {
+            allowed: false,
+            remaining,
+            spent,
+            cappedAmount: remaining,
+        };
+    }
+
+    return {
+        allowed: false,
+        remaining: 0,
+        spent,
+    };
+}
+
+/**
+ * OPTIMIZED: Check spend limit using in-memory cache.
+ * Falls back to Redis on first access or when bucket changes.
+ * Saves 1 Redis call on cache hit (most common case).
+ */
+export async function checkSpendLimitCached(
+    userId: string,
+    stonkId: string,
+    requestedAmount: number
+): Promise<SpendLimitResult> {
+    const cacheKey = getSpendCacheKey(userId, stonkId);
+    const currentBucket = getCurrentSpendBucket();
+
+    const cached = spendLimitCache.get(cacheKey);
+
+    // If cache exists and is for current bucket, use it (0 Redis calls!)
+    if (cached && cached.bucket === currentBucket) {
+        return evaluateSpendLimit(cached.spent, requestedAmount);
+    }
+
+    // Cache miss or bucket changed - fetch from Redis
+    const redisKey = `${REDIS_KEYS.userSpend(userId, stonkId)}:${currentBucket}`;
+    const currentSpent = await redis.get(redisKey);
+    const spent = currentSpent ? parseInt(currentSpent) : 0;
+
+    // Update cache
+    spendLimitCache.set(cacheKey, { spent, bucket: currentBucket });
+
+    return evaluateSpendLimit(spent, requestedAmount);
+}
+
+/**
+ * OPTIMIZED: Record spending locally (0 Redis calls!).
+ * Actual Redis write happens in flushSpendingToRedis() at tick end.
+ * Also updates the cache so subsequent checks are accurate.
+ */
+export function recordSpendingLocal(
+    userId: string,
+    stonkId: string,
+    amount: number
+): void {
+    const cacheKey = getSpendCacheKey(userId, stonkId);
+    const currentBucket = getCurrentSpendBucket();
+
+    // Update the cache
+    const cached = spendLimitCache.get(cacheKey);
+    if (cached && cached.bucket === currentBucket) {
+        cached.spent += amount;
+    } else {
+        // New entry or bucket changed
+        spendLimitCache.set(cacheKey, { spent: amount, bucket: currentBucket });
+    }
+
+    // Queue for Redis flush
+    const pendingKey = `${cacheKey}:${currentBucket}`;
+    const pending = pendingSpendUpdates.get(pendingKey);
+    if (pending && pending.bucket === currentBucket) {
+        pending.amount += amount;
+    } else {
+        pendingSpendUpdates.set(pendingKey, { amount, bucket: currentBucket });
+    }
+}
+
+/**
+ * Flushes all pending spend updates to Redis.
+ * Call this at the END of each scheduler tick, after flushPendingVolumes.
+ */
+export async function flushSpendingToRedis(): Promise<void> {
+    if (pendingSpendUpdates.size === 0) return;
+
+    const flushPromises: Promise<void>[] = [];
+
+    for (const [pendingKey, { amount, bucket }] of pendingSpendUpdates.entries()) {
+        // pendingKey format: userId:stonkId:bucket
+        const parts = pendingKey.split(':');
+        const userId = parts[0] ?? '';
+        const stonkId = parts[1] ?? '';
+        if (!userId || !stonkId) continue;
+
+        const redisKey = `${REDIS_KEYS.userSpend(userId, stonkId)}:${bucket}`;
+
+        flushPromises.push((async () => {
+            await redis.incrBy(redisKey, amount);
+            await redis.expire(redisKey, COOLDOWN_WINDOW_SECONDS * 2);
+        })());
+    }
+
+    await Promise.all(flushPromises);
+
+    const count = pendingSpendUpdates.size;
+    pendingSpendUpdates.clear();
+
+    // Clean up expired buckets from the cache
+    const currentBucket = getCurrentSpendBucket();
+    for (const [key, tracker] of spendLimitCache.entries()) {
+        if (tracker.bucket !== currentBucket) {
+            spendLimitCache.delete(key);
+        }
+    }
+
+    if (count > 0) {
+        console.log(`[Cache] Flushed ${count} spend limit updates`);
+    }
 }
 
 // ============================================

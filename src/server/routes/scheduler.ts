@@ -41,6 +41,9 @@ router.post('/internal/scheduler/price-tick', async (_req, res) => {
         // Flush accumulated volumes to Redis
         await redisService.flushPendingVolumes();
 
+        // Flush accumulated spend limit updates to Redis
+        await redisService.flushSpendingToRedis();
+
         // Update Tier 1 for all stonks
         const stonkIds = await stockTickerService.getAllStonkIds();
         let tier1Updated = 0;
