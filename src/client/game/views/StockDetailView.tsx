@@ -72,7 +72,7 @@ const InteractiveChart = ({ data }: { data: PriceHistoryEntry[] }) => {
     const height = 100;
     const padding = 5;
 
-    // Create points for polyline
+    // Create points for polyline (in SVG viewBox coordinates)
     const points = data.map((d, i) => {
         const x = padding + (i / (data.length - 1)) * (width - 2 * padding);
         const normalizedY = (d.p - min) / range;
@@ -89,13 +89,26 @@ const InteractiveChart = ({ data }: { data: PriceHistoryEntry[] }) => {
 
     /**
      * Handles mouse/touch movement to show tooltip at nearest data point.
+     * Key fix: Calculate positions based on the actual chart drawing area,
+     * accounting for the SVG padding classes (pb-4 pr-6).
      */
     const handleInteraction = (clientX: number) => {
         if (!containerRef.current) return;
 
         const rect = containerRef.current.getBoundingClientRect();
+
+        // The SVG has pb-4 (1rem = 16px) and pr-6 (1.5rem = 24px) padding via CSS
+        // This means the actual chart area is smaller than the container
+        const paddingRight = 24; // pr-6 = 1.5rem = 24px
+        const paddingBottom = 16; // pb-4 = 1rem = 16px
+
+        const chartWidth = rect.width - paddingRight;
+        const chartHeight = rect.height - paddingBottom;
+
         const relativeX = clientX - rect.left;
-        const percentX = relativeX / rect.width;
+
+        // Calculate percentage within the chart area (not the full container)
+        const percentX = Math.max(0, Math.min(1, relativeX / chartWidth));
 
         // Find nearest point
         const index = Math.min(
@@ -105,9 +118,23 @@ const InteractiveChart = ({ data }: { data: PriceHistoryEntry[] }) => {
         const point = points[index];
         if (!point) return;
 
+        // Convert SVG viewBox coordinates to actual container percentages
+        // Point.x is in viewBox coordinates (5-95 range for padding=5)
+        // We need to convert to chart area percentages, then to container percentages
+
+        // X position: Map from SVG viewBox to chart area, then to container
+        const svgXPercent = (point.x - padding) / (width - 2 * padding); // 0-1 in data range
+        const chartXPixels = svgXPercent * chartWidth; // Actual pixels in chart area
+        const containerXPercent = (chartXPixels / rect.width) * 100; // Percentage of container
+
+        // Y position: Map from SVG viewBox to chart area, then to container
+        const svgYPercent = (point.y - padding) / (height - 2 * padding); // 0-1 in viewBox
+        const chartYPixels = svgYPercent * chartHeight; // Actual pixels in chart area
+        const containerYPercent = (chartYPixels / rect.height) * 100; // Percentage of container
+
         setTooltip({
-            x: (point.x / width) * 100,
-            y: (point.y / height) * 100,
+            x: containerXPercent,
+            y: containerYPercent,
             price: point.price,
             time: new Date(point.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         });
@@ -150,7 +177,7 @@ const InteractiveChart = ({ data }: { data: PriceHistoryEntry[] }) => {
 
             <svg
                 viewBox={`0 0 ${width} ${height}`}
-                className="w-full h-full overflow-visible pb-4 pr-6" // Added padding for labels
+                className="w-full h-full overflow-visible pb-4 pr-6" // Padding for labels
                 preserveAspectRatio="none"
             >
                 <defs>
@@ -181,16 +208,19 @@ const InteractiveChart = ({ data }: { data: PriceHistoryEntry[] }) => {
             {/* HTML-based tooltip indicator (outside SVG to prevent stretching) */}
             {tooltip && (
                 <>
-                    {/* Vertical line */}
+                    {/* Vertical line - aligned with the data point */}
                     <div
-                        className="absolute top-0 bottom-4 w-px bg-[#FF4500] opacity-40 pointer-events-none"
+                        className="absolute top-0 bottom-4 w-px bg-[#FF4500] opacity-60 pointer-events-none"
                         style={{ left: `${tooltip.x}%` }}
                     />
-                    {/* Small circle dot */}
+                    {/* Small circle dot - properly aligned with chart line */}
                     <div
-                        className="absolute w-2 h-2 rounded-full bg-[#FF4500] opacity-80 pointer-events-none transform -translate-x-1/2 -translate-y-1/2"
-                        // Adjust Y to account for bottom padding in SVG if needed, but relative % should work if container matches
-                        style={{ left: `${tooltip.x}%`, top: `${(tooltip.y * 0.9)}%` }} // Approximate adjustment for padding
+                        className="absolute w-3 h-3 rounded-full bg-[#FF4500] border-2 border-white pointer-events-none"
+                        style={{
+                            left: `${tooltip.x}%`,
+                            top: `${tooltip.y}%`,
+                            transform: 'translate(-50%, -50%)'
+                        }}
                     />
                 </>
             )}
@@ -216,6 +246,7 @@ const InteractiveChart = ({ data }: { data: PriceHistoryEntry[] }) => {
         </div>
     );
 };
+
 
 /**
  * Trade modal component for buy/sell actions with quantity slider.
