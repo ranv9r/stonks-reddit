@@ -53,6 +53,7 @@ export const App = () => {
     };
     setupRealtime();
 
+    // Fetch config once on mount (realtime handles updates)
     const fetchGameConfig = async () => {
       try {
         const res = await fetch('/api/config');
@@ -67,10 +68,8 @@ export const App = () => {
       }
     };
     fetchGameConfig();
-    const intervalId = setInterval(fetchGameConfig, 10000);
 
     return () => {
-      clearInterval(intervalId);
       statusConnection.current?.disconnect();
     };
   }, []);

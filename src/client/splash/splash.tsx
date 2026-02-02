@@ -29,9 +29,16 @@ interface MarketTickPayload {
   timestamp: number;
 }
 
+interface PortfolioHolding {
+  stonkId: string;
+  quantity: number;
+  avgBuyPrice: number;
+}
+
 interface PortfolioData {
   walletBalance: number;
   totalValue: number;
+  holdings: PortfolioHolding[];
 }
 
 /**
@@ -46,14 +53,14 @@ export const Splash = () => {
 
   const tickerConnection = useRef<{ disconnect: () => Promise<void> } | null>(null);
   const statusConnection = useRef<{ disconnect: () => Promise<void> } | null>(null);
+  const holdingsRef = useRef<PortfolioHolding[]>([]);
 
   useEffect(() => {
     fetchMarketPreview();
     fetchPortfolio();
     fetchGameConfig();
 
-    // Poll for status every 10 seconds (backup for realtime)
-    const intervalId = setInterval(fetchGameConfig, 10000);
+    // Realtime handles all updates (no polling needed)
 
     const setupRealtime = async () => {
       try {
@@ -69,8 +76,18 @@ export const Splash = () => {
               priceChangePercent: s.priceChangePercent,
             }));
             setStonks(updatedStonks);
-            // Re-fetch portfolio on price update
-            fetchPortfolio();
+
+            // Update portfolio value locally using new prices (no re-fetch)
+            const currentHoldings = holdingsRef.current;
+            if (currentHoldings.length === 0) return;
+
+            let newTotalValue = 0;
+            for (const holding of currentHoldings) {
+              const stonkData = payload.stonks.find(s => s.id === holding.stonkId);
+              const price = stonkData?.currentPrice ?? holding.avgBuyPrice;
+              newTotalValue += holding.quantity * price;
+            }
+            setPortfolio(prev => prev ? { ...prev, totalValue: newTotalValue } : prev);
           },
         });
 
@@ -91,7 +108,6 @@ export const Splash = () => {
     setupRealtime();
 
     return () => {
-      clearInterval(intervalId);
       tickerConnection.current?.disconnect();
       statusConnection.current?.disconnect();
     };
@@ -127,13 +143,20 @@ export const Splash = () => {
     }
   };
 
-  /** Fetches user portfolio data from API */
+  /** Fetches user portfolio data from API (once on mount) */
   const fetchPortfolio = async () => {
     try {
       const res = await fetch('/api/portfolio');
       if (res.ok) {
         const data = await res.json();
-        setPortfolio({ walletBalance: data.walletBalance, totalValue: data.totalValue });
+        // Store holdings so we can update values locally with realtime prices
+        const holdings: PortfolioHolding[] = (data.holdings || []).map((h: any) => ({
+          stonkId: h.stonkId,
+          quantity: h.quantity,
+          avgBuyPrice: h.avgBuyPrice || h.currentPrice,
+        }));
+        holdingsRef.current = holdings; // Update ref for realtime callback
+        setPortfolio({ walletBalance: data.walletBalance, totalValue: data.totalValue, holdings });
       }
     } catch (err) {
       console.error('Failed to fetch portfolio:', err);
