@@ -25,6 +25,7 @@ interface StonkState {
     name: string;
     ticker: string;
     icon: string;
+    imageUrl?: string;
     basePrice: number;
     currentPrice: number;
     virtualLiquidity: number;
@@ -350,7 +351,11 @@ const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPosit
                     {/* Header with glowing price box */}
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center gap-3">
-                            <span className="text-3xl">{stonk.icon}</span>
+                            {stonk.imageUrl ? (
+                                <img src={stonk.imageUrl} alt={stonk.ticker} className="w-10 h-10 rounded-lg object-cover" />
+                            ) : (
+                                <span className="text-3xl">{stonk.icon}</span>
+                            )}
                             <div>
                                 <div className="text-white font-bold text-lg">{stonk.ticker}</div>
                                 <div className="text-gray-400 text-sm">{stonk.name}</div>
@@ -646,7 +651,11 @@ export const StockDetailView = ({ stonkId, onBack, isMarketOpen = true }: StockD
                         <ArrowLeftIcon size={20} className="text-white" />
                     </button>
                     <div className="flex items-center gap-3 flex-1">
-                        <span className="text-3xl">{stonk.icon}</span>
+                        {stonk.imageUrl ? (
+                            <img src={stonk.imageUrl} alt={stonk.ticker} className="w-10 h-10 rounded-lg object-cover" />
+                        ) : (
+                            <span className="text-3xl">{stonk.icon}</span>
+                        )}
                         <div>
                             <h2 className="text-xl font-bold text-white">{stonk.ticker}</h2>
                             <p className="text-xs text-[#a1a1aa]">{stonk.name}</p>

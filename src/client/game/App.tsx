@@ -22,6 +22,55 @@ export const App = () => {
   const [isMarketOpen, setIsMarketOpen] = useState(false); // Default closed until fetched
   const statusConnection = useRef<{ disconnect: () => Promise<void> } | null>(null);
 
+  // Touch swipe handling for mobile navigation
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+  const SWIPE_THRESHOLD = 50; // minimum distance to trigger swipe
+  const SWIPEABLE_VIEWS: View[] = ['market', 'portfolio', 'leaderboard'];
+
+  /** Handles touch start event for swipe detection */
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    if (touch) {
+      touchStartX.current = touch.clientX;
+      touchEndX.current = null;
+    }
+  };
+
+  /** Handles touch move event */
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    if (touch) {
+      touchEndX.current = touch.clientX;
+    }
+  };
+
+  /** Handles touch end event and triggers view switch if swipe detected */
+  const handleTouchEnd = () => {
+    if (touchStartX.current === null || touchEndX.current === null) return;
+
+    const diff = touchStartX.current - touchEndX.current;
+    const currentIndex = SWIPEABLE_VIEWS.indexOf(currentView);
+
+    // Only process if we're on a swipeable view
+    if (currentIndex === -1) return;
+
+    if (Math.abs(diff) > SWIPE_THRESHOLD) {
+      if (diff > 0) {
+        // Swipe left - go to next tab
+        const nextView = SWIPEABLE_VIEWS[currentIndex + 1];
+        if (nextView) setCurrentView(nextView);
+      } else {
+        // Swipe right - go to previous tab
+        const prevView = SWIPEABLE_VIEWS[currentIndex - 1];
+        if (prevView) setCurrentView(prevView);
+      }
+    }
+
+    touchStartX.current = null;
+    touchEndX.current = null;
+  };
+
   // Check if user is a moderator on mount
   useEffect(() => {
     const checkModStatus = async () => {
@@ -120,8 +169,13 @@ export const App = () => {
         </div>
       </header>
 
-      {/* Main Content - Scrollable with View Transitions */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden">
+      {/* Main Content - Scrollable with View Transitions and Swipe Support */}
+      <main
+        className="flex-1 overflow-y-auto overflow-x-hidden"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <div className="min-h-full game-content-wrapper">
           {currentView === 'market' && (
             <div className="view-enter">

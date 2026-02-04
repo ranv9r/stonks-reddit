@@ -149,7 +149,6 @@ export async function createStonk(
     name: string,
     ticker: string,
     icon: string,
-    basePrice: number = DEFAULT_BASE_PRICE,
     xVirt: number = DEFAULT_X_VIRT,
     yVirt: number = DEFAULT_Y_VIRT,
     createdBy: string,

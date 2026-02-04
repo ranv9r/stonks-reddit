@@ -3,15 +3,15 @@ import './splash.css';
 
 import { connectRealtime } from '@devvit/web/client';
 import { context, requestExpandedMode } from '@devvit/web/client';
-import { StrictMode, useState, useEffect, useRef } from 'react';
+import { StrictMode, useState, useEffect, useRef, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { LogoChartIcon } from '../game/components/Icons';
 import stonksGuy from '../assets/stonks-guy.png';
-import { MARKET_PREVIEW_COUNT } from './splashConfig';
 
 interface StonkPreview {
   ticker: string;
   icon: string;
+  imageUrl?: string;
   currentPrice: number;
   priceChangePercent: number;
 }
@@ -20,6 +20,7 @@ interface RealtimeStonk {
   id: string;
   ticker: string;
   icon: string;
+  imageUrl?: string;
   currentPrice: number;
   priceChangePercent: number;
 }
@@ -56,6 +57,9 @@ export const Splash = () => {
   const statusConnection = useRef<{ disconnect: () => Promise<void> } | null>(null);
   // Ref to track holdings for realtime updates (avoids stale closure)
   const holdingsRef = useRef<PortfolioHolding[]>([]);
+  // Refs for auto-scroll detection
+  const marketCardsRef = useRef<HTMLDivElement>(null);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
 
   useEffect(() => {
     fetchMarketPreview();
@@ -71,14 +75,34 @@ export const Splash = () => {
           onMessage: (data: unknown) => {
             const payload = data as MarketTickPayload;
 
-            // Update stonk prices
-            const updatedStonks = payload.stonks.map(s => ({
-              ticker: s.ticker,
-              icon: s.icon,
-              currentPrice: s.currentPrice,
-              priceChangePercent: s.priceChangePercent,
-            }));
-            setStonks(updatedStonks);
+            // Update stonk prices - merge with existing data to preserve imageUrl
+            setStonks(prevStonks => {
+              // If no previous data, create from realtime
+              if (prevStonks.length === 0) {
+                return payload.stonks.map(s => ({
+                  ticker: s.ticker,
+                  icon: s.icon,
+                  ...(s.imageUrl ? { imageUrl: s.imageUrl } : {}),
+                  currentPrice: s.currentPrice,
+                  priceChangePercent: s.priceChangePercent,
+                }));
+              }
+              // Merge with existing data to keep imageUrl from initial fetch
+              return prevStonks.map(existing => {
+                const update = payload.stonks.find(s => s.ticker === existing.ticker);
+                if (update) {
+                  return {
+                    ...existing,
+                    currentPrice: update.currentPrice,
+                    priceChangePercent: update.priceChangePercent,
+                    // Preserve imageUrl from existing or use from update
+                    ...(existing.imageUrl ? { imageUrl: existing.imageUrl } :
+                      update.imageUrl ? { imageUrl: update.imageUrl } : {}),
+                  };
+                }
+                return existing;
+              });
+            });
 
             // Update portfolio value using latest prices from realtime
             const currentHoldings = holdingsRef.current;
@@ -166,6 +190,25 @@ export const Splash = () => {
     }
   };
 
+  /** Checks if market cards overflow and enables auto-scroll if needed */
+  const checkOverflow = useCallback(() => {
+    if (marketCardsRef.current && stonks.length > 0 && !loading) {
+      const container = marketCardsRef.current;
+      const inner = container.querySelector('.market-cards-inner') as HTMLElement;
+      if (inner) {
+        // Check if content height exceeds container height
+        const containerHeight = container.clientHeight;
+        const contentHeight = inner.scrollHeight / (shouldAutoScroll ? 2 : 1); // Account for duplicates
+        setShouldAutoScroll(contentHeight > containerHeight);
+      }
+    }
+  }, [stonks, loading, shouldAutoScroll]);
+
+  // Check overflow when stocks change
+  useEffect(() => {
+    checkOverflow();
+  }, [stonks, loading, checkOverflow]);
+
   const netWorth = portfolio ? (portfolio.walletBalance + portfolio.totalValue) / 100 : 0;
 
   return (
@@ -229,23 +272,53 @@ export const Splash = () => {
               </span>
             </div>
           </div>
-          <div className="market-cards">
-            {!loading && stonks.slice(0, MARKET_PREVIEW_COUNT).map((stonk) => (
-              <div key={stonk.ticker} className="market-card">
-                <div className="card-left">
-                  <span className="stonk-icon">{stonk.icon}</span>
-                  <div className="stonk-info">
-                    <div className="stonk-ticker">{stonk.ticker}</div>
-                    <div className="stonk-price">
-                      ${(stonk.currentPrice / 100).toFixed(2)}
+          <div
+            className={`market-cards ${shouldAutoScroll ? 'auto-scroll' : ''}`}
+            ref={marketCardsRef}
+          >
+            <div className="market-cards-inner">
+              {!loading && stonks.map((stonk) => (
+                <div key={stonk.ticker} className="market-card">
+                  <div className="card-left">
+                    {stonk.imageUrl ? (
+                      <img src={stonk.imageUrl} alt={stonk.ticker} className="stonk-logo" />
+                    ) : (
+                      <span className="stonk-icon">{stonk.icon}</span>
+                    )}
+                    <div className="stonk-info">
+                      <div className="stonk-ticker">{stonk.ticker}</div>
+                      <div className="stonk-price">
+                        ${(stonk.currentPrice / 100).toFixed(2)}
+                      </div>
                     </div>
                   </div>
+                  <div className={`price-badge ${stonk.priceChangePercent >= 0 ? 'up' : 'down'}`}>
+                    {stonk.priceChangePercent >= 0 ? '+' : ''}{stonk.priceChangePercent.toFixed(1)}%
+                  </div>
                 </div>
-                <div className={`price-badge ${stonk.priceChangePercent >= 0 ? 'up' : 'down'}`}>
-                  {stonk.priceChangePercent >= 0 ? '+' : ''}{stonk.priceChangePercent.toFixed(1)}%
+              ))}
+              {/* Duplicate cards for seamless loop */}
+              {shouldAutoScroll && !loading && stonks.map((stonk) => (
+                <div key={`${stonk.ticker}-dup`} className="market-card">
+                  <div className="card-left">
+                    {stonk.imageUrl ? (
+                      <img src={stonk.imageUrl} alt={stonk.ticker} className="stonk-logo" />
+                    ) : (
+                      <span className="stonk-icon">{stonk.icon}</span>
+                    )}
+                    <div className="stonk-info">
+                      <div className="stonk-ticker">{stonk.ticker}</div>
+                      <div className="stonk-price">
+                        ${(stonk.currentPrice / 100).toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className={`price-badge ${stonk.priceChangePercent >= 0 ? 'up' : 'down'}`}>
+                    {stonk.priceChangePercent >= 0 ? '+' : ''}{stonk.priceChangePercent.toFixed(1)}%
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </div>
