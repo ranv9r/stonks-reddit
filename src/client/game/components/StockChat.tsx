@@ -176,6 +176,12 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
                         type="text"
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
+                        onFocus={(e) => {
+                            // Scroll input into view when mobile keyboard opens
+                            setTimeout(() => {
+                                e.target.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                            }, 300); // Delay to wait for keyboard to open
+                        }}
                         placeholder="Say something..."
                         className="flex-1 bg-slate-950/50 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 transition-colors"
                         disabled={sending}

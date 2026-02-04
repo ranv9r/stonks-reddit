@@ -208,40 +208,24 @@ const InteractiveChart = ({ data }: { data: PriceHistoryEntry[] }) => {
 
             {/* HTML-based tooltip indicator (outside SVG to prevent stretching) */}
             {tooltip && (
-                <>
-                    {/* Vertical line - aligned with the data point */}
-                    <div
-                        className="absolute top-0 bottom-4 w-px bg-[#FF4500] opacity-60 pointer-events-none"
-                        style={{ left: `${tooltip.x}%` }}
-                    />
-                    {/* Small circle dot - properly aligned with chart line */}
-                    <div
-                        className="absolute w-3 h-3 rounded-full bg-[#FF4500] border-2 border-white pointer-events-none"
-                        style={{
-                            left: `${tooltip.x}%`,
-                            top: `${tooltip.y}%`,
-                            transform: 'translate(-50%, -50%)'
-                        }}
-                    />
-                </>
+                <div
+                    className="absolute top-0 bottom-4 w-px bg-[#FF4500] opacity-60 pointer-events-none"
+                    style={{ left: `${tooltip.x}%` }}
+                />
             )}
 
-            {/* Tooltip box */}
+            {/* Tooltip box - single line, clamped to stay in bounds */}
             {tooltip && (
                 <div
-                    className="absolute pointer-events-none bg-[#1f1f1f] border border-[#333] rounded-lg px-3 py-2 shadow-lg z-10 transform -translate-x-1/2"
+                    className="absolute pointer-events-none bg-[#1f1f1f]/95 border border-[#444] rounded-md px-2 py-1.5 shadow-lg z-30 whitespace-nowrap"
                     style={{
-                        left: `${tooltip.x}%`,
-                        top: `0%`,
-                        marginTop: '-10px'
+                        left: `clamp(50px, ${tooltip.x}%, calc(100% - 50px))`,
+                        top: '4px',
+                        transform: 'translateX(-50%)'
                     }}
                 >
-                    <div className="text-white font-bold text-sm">
-                        ${(tooltip.price / 100).toFixed(2)}
-                    </div>
-                    <div className="text-gray-400 text-xs">
-                        {tooltip.time}
-                    </div>
+                    <span className="text-white font-bold text-sm">${(tooltip.price / 100).toFixed(2)}</span>
+                    <span className="text-gray-400 text-xs ml-2">{tooltip.time}</span>
                 </div>
             )}
         </div>
@@ -663,21 +647,28 @@ export const StockDetailView = ({ stonkId, onBack, isMarketOpen = true }: StockD
                     </div>
                 </div>
 
-                {/* Price Display */}
-                <div className="px-4 py-2">
-                    <div className="text-3xl font-bold text-white">
-                        ${(stonk.currentPrice / 100).toFixed(2)}
-                    </div>
-                    <div className="flex flex-col items-start">
-                        {!isMarketOpen && (
-                            <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full mt-0.5 mb-1">
-                                MARKET CLOSED
-                            </span>
-                        )}
-                        <div className={`text-sm mt-1 flex items-center gap-1 ${priceChange >= 0 ? 'text-[#00D084]' : 'text-[#FF4444]'
-                            }`}>
-                            {priceChange >= 0 ? '▲' : '▼'} ${Math.abs(priceChange / 100).toFixed(2)} ({priceChangePercent >= 0 ? '+' : ''}{priceChangePercent.toFixed(2)}%)
+                {/* Price Display with ATH/ATL */}
+                <div className="px-4 py-2 flex justify-between items-start">
+                    <div>
+                        <div className="text-3xl font-bold text-white">
+                            ${(stonk.currentPrice / 100).toFixed(2)}
                         </div>
+                        <div className="flex flex-col items-start">
+                            {!isMarketOpen && (
+                                <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full mt-0.5 mb-1">
+                                    MARKET CLOSED
+                                </span>
+                            )}
+                            <div className={`text-sm mt-1 flex items-center gap-1 ${priceChange >= 0 ? 'text-[#00D084]' : 'text-[#FF4444]'
+                                }`}>
+                                {priceChange >= 0 ? '▲' : '▼'} ${Math.abs(priceChange / 100).toFixed(2)} ({priceChangePercent >= 0 ? '+' : ''}{priceChangePercent.toFixed(2)}%)
+                            </div>
+                        </div>
+                    </div>
+                    {/* ATH/ATL aligned right */}
+                    <div className="text-right pr-2">
+                        <div className="text-gray-500 text-[10px]">ATH <span className="text-white font-mono font-medium">${(allTimeHigh / 100).toFixed(2)}</span></div>
+                        <div className="text-gray-500 text-[10px]">ATL <span className="text-white font-mono font-medium">${(allTimeLow / 100).toFixed(2)}</span></div>
                     </div>
                 </div>
 
@@ -708,38 +699,7 @@ export const StockDetailView = ({ stonkId, onBack, isMarketOpen = true }: StockD
                         ))}
                     </div>
 
-                    {/* All-Time Performance & Meme Card */}
-                    <div className="flex flex-col gap-2">
-                        <div className="bg-[#1A1A1B] rounded-xl p-4 w-fit max-w-[70%] self-start border border-[#27272a] shadow-lg transform hover:scale-105 transition-transform">
-                            <div className="text-gray-400 text-[10px] uppercase tracking-wider mb-2 font-semibold">All Time Performance</div>
 
-                            <div className="flex items-end gap-3 mb-2">
-                                <div>
-                                    <div className="text-gray-500 text-[10px] mb-0.5">ATH</div>
-                                    <div className="text-white font-mono text-sm font-bold">${(allTimeHigh / 100).toFixed(2)}</div>
-                                </div>
-                                <div className="h-8 w-px bg-[#333]"></div>
-                                <div>
-                                    <div className="text-gray-500 text-[10px] mb-0.5">ATL</div>
-                                    <div className="text-white font-mono text-sm font-bold">${(allTimeLow / 100).toFixed(2)}</div>
-                                </div>
-                            </div>
-
-                            {/* Meme Text */}
-                            <div className={`text-xs font-medium italic mt-1 ${stonk.currentPrice >= allTimeHigh * 0.95 ? 'text-[#00D084]' :
-                                stonk.currentPrice <= allTimeLow * 1.05 ? 'text-[#FF4444]' :
-                                    'text-[#FFaa00]'
-                                }`}>
-                                "{
-                                    stonk.currentPrice >= allTimeHigh * 0.95 ? "Moon soon? 🚀🌕" :
-                                        stonk.currentPrice <= allTimeLow * 1.05 ? "Buy the dip! 📉🧠" :
-                                            stonk.currentPrice >= allTimeHigh * 0.7 ? "Climbing the mountain 🧗" :
-                                                stonk.currentPrice <= allTimeLow * 1.3 ? "Oof, rough patch 🤕" :
-                                                    "HODL tight 💎🙌"
-                                }"
-                            </div>
-                        </div>
-                    </div>
 
                     {/* User Holding */}
                     {userHolding && userHolding.qty > 0 && (
@@ -768,15 +728,8 @@ export const StockDetailView = ({ stonkId, onBack, isMarketOpen = true }: StockD
                         </div>
                     )}
 
-                    {/* Mobile Chat (Bottom of Scroll) */}
-                    <div className="lg:hidden mt-4 pb-4 h-[400px]">
-                        <StockChat stonkId={stonkId} className="h-full" />
-                    </div>
-                </div>
-
-                {/* Footer Actions */}
-                <div className="mt-auto border-t border-[#27272a] bg-[#18181b] px-4 py-4 safe-area-bottom pb-8 z-20 shadow-[-4px_-4px_10px_rgba(0,0,0,0.5)]">
-                    <div className="flex gap-4 max-w-2xl mx-auto">
+                    {/* Buy/Sell Buttons - Above Chat */}
+                    <div className="flex gap-4 mt-4">
                         <button
                             onClick={() => openModal('sell')}
                             disabled={!isMarketOpen}
@@ -800,7 +753,14 @@ export const StockDetailView = ({ stonkId, onBack, isMarketOpen = true }: StockD
                             BUY
                         </button>
                     </div>
+
+                    {/* Mobile Chat (Bottom of Scroll) */}
+                    <div className="lg:hidden mt-4 pb-4 h-[400px]">
+                        <StockChat stonkId={stonkId} className="h-full" />
+                    </div>
                 </div>
+
+
             </div>
 
             {/* Desktop Chat Sidebar */}

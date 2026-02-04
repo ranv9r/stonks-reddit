@@ -8,14 +8,51 @@ import { REDIS_KEYS, CHAT_LIMIT, CHAT_CACHE_TTL } from '../../shared/config';
 import type { ChatMessage } from '../../shared/types/stonks';
 
 /**
+ * Chat cooldown in seconds.
+ */
+const CHAT_COOLDOWN_SECONDS = 10;
+
+/**
+ * Checks if user is on cooldown for chat.
+ * Returns remaining seconds if on cooldown, 0 if allowed.
+ */
+export async function checkChatCooldown(userId: string): Promise<number> {
+    const key = `chat:cooldown:${userId}`;
+    const expiryStr = await redis.get(key);
+    if (!expiryStr) return 0;
+
+    const expiryTime = parseInt(expiryStr);
+    const now = Date.now();
+    const remainingMs = expiryTime - now;
+
+    return remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0;
+}
+
+/**
+ * Sets chat cooldown for user.
+ */
+async function setChatCooldown(userId: string): Promise<void> {
+    const key = `chat:cooldown:${userId}`;
+    const expiryTime = Date.now() + (CHAT_COOLDOWN_SECONDS * 1000);
+    await redis.set(key, String(expiryTime));
+    await redis.expire(key, CHAT_COOLDOWN_SECONDS + 5); // Auto-cleanup with buffer
+}
+
+/**
  * Adds a new message to the chat.
- * Trims the history to keep only the latest messages.
+ * Checks cooldown and trims history to keep only the latest messages.
  */
 export async function addMessage(
     stonkId: string,
     user: { id: string; username: string },
     text: string
 ): Promise<ChatMessage> {
+    // Check cooldown first
+    const cooldownRemaining = await checkChatCooldown(user.id);
+    if (cooldownRemaining > 0) {
+        throw new Error(`Please wait ${cooldownRemaining}s before sending another message`);
+    }
+
     const now = Date.now();
     const messageId = crypto.randomUUID();
 
@@ -33,13 +70,13 @@ export async function addMessage(
     await redis.zAdd(key, { score: now, member: JSON.stringify(message) });
 
     // Trim to keep only the latest N messages
-    // Remove range from 0 to -(LIMIT + 1)
-    // ZREMRANGEBYRANK key 0 -(LIMIT + 1)
-    // For 40 items: remove 0 to -41
     const count = await redis.zCard(key);
     if (count > CHAT_LIMIT) {
         await redis.zRemRangeByRank(key, 0, count - CHAT_LIMIT - 1);
     }
+
+    // Set cooldown for user
+    await setChatCooldown(user.id);
 
     return message;
 }

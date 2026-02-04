@@ -86,8 +86,7 @@ router.post('/internal/menu/manage-stonks', async (_req, res) => {
                 stock.name,
                 stock.ticker,
                 stock.icon,
-                DEFAULT_BASE_PRICE,  // $100
-                DEFAULT_X_VIRT,      // $1M virtual cash
+                DEFAULT_X_VIRT,      // xVirt: $1M virtual cash
                 DEFAULT_X_VIRT / DEFAULT_BASE_PRICE, // yVirt for $100 price
                 'system'
             );
@@ -148,7 +147,6 @@ router.post('/api/mod/stonks', async (req, res) => {
             name,
             ticker.toUpperCase(),
             icon || '📈',
-            targetPrice,
             xVirt,
             yVirt,
             userId,
@@ -352,7 +350,6 @@ router.post('/api/mod/reset-game', async (_req, res) => {
                 stock.name,
                 stock.ticker,
                 stock.icon,
-                DEFAULT_BASE_PRICE,
                 DEFAULT_X_VIRT,
                 DEFAULT_X_VIRT / DEFAULT_BASE_PRICE,
                 'system',
@@ -450,8 +447,7 @@ router.post('/internal/menu/reset-game', async (_req, res) => {
                 stock.name,
                 stock.ticker,
                 stock.icon,
-                DEFAULT_BASE_PRICE,  // $100
-                DEFAULT_X_VIRT,      // $1M virtual cash
+                DEFAULT_X_VIRT,      // xVirt: $1M virtual cash
                 DEFAULT_X_VIRT / DEFAULT_BASE_PRICE, // yVirt for $100 price
                 'system'
             );
@@ -503,9 +499,8 @@ router.post('/internal/triggers/on-app-install', async (_req, res) => {
                     stock.name,
                     stock.ticker,
                     stock.icon,
-                    DEFAULT_BASE_PRICE,  // $100
-                    DEFAULT_X_VIRT,      // 100K virtual cash
-                    DEFAULT_X_VIRT / DEFAULT_BASE_PRICE, // yVirt to achieve $100 price
+                    DEFAULT_X_VIRT,      // xVirt: $1M virtual cash
+                    DEFAULT_X_VIRT / DEFAULT_BASE_PRICE, // yVirt for $100 price
                     'system'
                 );
                 console.log(`[Install] Created test stock: ${stock.ticker}`);

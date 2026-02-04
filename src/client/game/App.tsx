@@ -71,6 +71,16 @@ export const App = () => {
     touchEndX.current = null;
   };
 
+  /** Check if redirected from splash with a specific stonk to open */
+  useEffect(() => {
+    const stonkId = localStorage.getItem('openStonkId');
+    if (stonkId) {
+      localStorage.removeItem('openStonkId'); // Clear it immediately
+      setSelectedStonkId(stonkId);
+      setCurrentView('detail');
+    }
+  }, []);
+
   // Check if user is a moderator on mount
   useEffect(() => {
     const checkModStatus = async () => {

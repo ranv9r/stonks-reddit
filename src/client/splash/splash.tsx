@@ -9,6 +9,7 @@ import { LogoChartIcon } from '../game/components/Icons';
 import stonksGuy from '../assets/stonks-guy.png';
 
 interface StonkPreview {
+  id: string;
   ticker: string;
   icon: string;
   imageUrl?: string;
@@ -80,6 +81,7 @@ export const Splash = () => {
               // If no previous data, create from realtime
               if (prevStonks.length === 0) {
                 return payload.stonks.map(s => ({
+                  id: s.id,
                   ticker: s.ticker,
                   icon: s.icon,
                   ...(s.imageUrl ? { imageUrl: s.imageUrl } : {}),
@@ -278,7 +280,15 @@ export const Splash = () => {
           >
             <div className="market-cards-inner">
               {!loading && stonks.map((stonk) => (
-                <div key={stonk.ticker} className="market-card">
+                <div
+                  key={stonk.ticker}
+                  className="market-card cursor-pointer hover:border-[#FF4500] hover:scale-[1.02] transition-all"
+                  onClick={(e) => {
+                    // Store stonkId for the app to read on load
+                    localStorage.setItem('openStonkId', stonk.id);
+                    requestExpandedMode(e.nativeEvent, 'game');
+                  }}
+                >
                   <div className="card-left">
                     {stonk.imageUrl ? (
                       <img src={stonk.imageUrl} alt={stonk.ticker} className="stonk-logo" />

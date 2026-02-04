@@ -257,33 +257,37 @@ export async function resolveBatches(): Promise<void> {
         // Skip if no volume
         if (buyVolume === 0 && sellVolume === 0) return;
 
-        // Apply to AMM State
-        // Logic:
-        // Users bought 'buyVolume' cash worth of stock at OLD price.
-        // Users sold 'sellVolume' shares of stock at OLD price.
+        const preBatchPrice = stonk.currentPrice;
 
-        // We update reserves based on the NET FLOW of cash and shares that occurred.
-        // xReal (Cash): Increases by Buy Cash In, Decreases by Sell Cash Out.
-        // yReal (Shares): Increases by Sell Shares In, Decreases by Buy Shares Out.
+        // --- CRITICAL FIX: Match AMM state to ACTUAL traded amounts ---
+        // Users traded at FIXED PRICE, so we must update reserves based on
+        // what actually happened, not what the AMM curve would have given.
 
-        const currentPrice = stonk.currentPrice;
+        // At fixed price P:
+        // - Buys: users paid buyVolume cash, got buyVolume/P shares
+        // - Sells: users gave sellVolume shares, got sellVolume*P cash
 
-        const cashIn = buyVolume;
-        const cashOut = sellVolume * currentPrice;
+        const sharesFromBuys = buyVolume / preBatchPrice;  // Shares distributed to buyers
+        const cashFromSells = sellVolume * preBatchPrice; // Cash paid to sellers
 
-        const sharesIn = sellVolume;
-        const sharesOut = buyVolume / currentPrice;
+        // Net effect on reserves (from the pool's perspective):
+        // - Cash: +buyVolume (from buyers) -cashFromSells (to sellers)
+        // - Shares: -sharesFromBuys (to buyers) +sellVolume (from sellers)
 
+        const netCashChange = buyVolume - cashFromSells;
+        const netShareChange = sellVolume - sharesFromBuys;
+
+        // Build new AMM state with direct reserve update
         const newState: AMMState = {
             xVirt: stonk.xVirt,
             yVirt: stonk.yVirt,
-            xReal: stonk.xReal + (cashIn - cashOut),
-            yReal: stonk.yReal + (sharesIn - sharesOut),
+            xReal: stonk.xReal + netCashChange,
+            yReal: stonk.yReal + netShareChange,
         };
 
-        // Recalculate Price
+        // New price from updated reserves
         const newPrice = ammEngine.getSpotPrice(newState);
-        const totalVol = Math.abs(cashIn) + Math.abs(cashOut);
+        const totalVol = Math.abs(buyVolume) + Math.abs(cashFromSells);
 
         await redisService.updateStonkAMMState(
             stonk.id,
@@ -292,7 +296,7 @@ export async function resolveBatches(): Promise<void> {
             Math.round(totalVol)
         );
 
-        console.log(`[Batch] ${stonk.ticker}: Buys=$${buyVolume / 100}, Sells=${sellVolume} -> Price: $${currentPrice / 100} -> $${newPrice / 100}`);
+        console.log(`[Batch] ${stonk.ticker}: Buys=$${buyVolume / 100} (${sharesFromBuys.toFixed(4)}sh), Sells=${sellVolume.toFixed(4)}sh ($${cashFromSells / 100}) -> Price: $${preBatchPrice / 100} -> $${newPrice / 100}`);
     }));
 }
 

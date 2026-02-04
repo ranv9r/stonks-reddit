@@ -50,17 +50,29 @@ export const AdminView = () => {
                     { name: 'name', type: 'string', label: 'Stock Name', required: true },
                     { name: 'ticker', type: 'string', label: 'Ticker Symbol (e.g., TSLA)', required: true },
                     { name: 'icon', type: 'string', label: 'Emoji Icon (optional)', required: false },
-                    { name: 'logo', type: 'image', label: 'Stock Logo (optional)', required: false },
+                    {
+                        name: 'logo',
+                        type: 'image',
+                        label: 'Stock Logo (optional)',
+                        required: false,
+                        helpText: 'PNG/JPG/GIF, max 20MB. Recommended: 200x200px or larger.'
+                    },
                 ],
             });
 
             if (result && result.action === 'SUBMITTED') {
                 setActionLoading(true);
+                setError(null); // Clear any previous error
                 const values = result.values;
                 const name = values.name as string;
                 const ticker = values.ticker as string;
                 const icon = values.icon as string | undefined;
                 const logo = values.logo as string | undefined;
+
+                // Check if logo URL is valid (Devvit returns empty string on failure)
+                if (logo === '') {
+                    console.warn('Image upload returned empty - this may indicate an upload failure');
+                }
 
                 const response = await fetch('/api/mod/stonks', {
                     method: 'POST',
@@ -69,7 +81,7 @@ export const AdminView = () => {
                         name,
                         ticker,
                         icon: icon || '📈',
-                        imageUrl: logo,
+                        imageUrl: logo || undefined, // Don't send empty string
                     }),
                 });
 
@@ -82,7 +94,8 @@ export const AdminView = () => {
             }
         } catch (err) {
             console.error('Create stock error:', err);
-            setError('Failed to create stock');
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            setError(`Failed to create stock: ${errorMsg}`);
         } finally {
             setActionLoading(false);
         }
