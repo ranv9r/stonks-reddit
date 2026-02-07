@@ -111,11 +111,11 @@
     position: absolute;
     /* Move it significantly higher to clear the stonks guy's head/shoulders */
     bottom: 65%;
-    left: 5%;
+    left: 20%;
     z-index: 1;
     opacity: 0.95;
     /* Increase width for better visibility */
-    width: 60%;
+    width: 85%;
     transform: rotate(12deg);
 }
 

@@ -158,15 +158,16 @@ export const SparklesIcon = ({ className = '', size = 24 }: IconProps) => (
     </svg>
 );
 
-// Logo Chart Icon (for branding)
 export const LogoChartIcon = ({ className = '', size = 32 }: IconProps) => (
     <svg
         width={size}
         height={size}
         viewBox="0 0 32 32"
         fill="none"
+        xmlns="http://www.w3.org/2000/svg"
         className={className}
     >
+        {/* Main Trendline */}
         <path
             d="M4 28 L8 20 L12 24 L18 10 L24 16 L28 4"
             stroke="url(#logoGradient)"
@@ -175,15 +176,25 @@ export const LogoChartIcon = ({ className = '', size = 32 }: IconProps) => (
             strokeLinejoin="round"
             fill="none"
         />
+
+        {/* Adjusted Arrowhead - Open path for a consistent stroke look */}
+        <path
+            d="M23.5 8.5 L28 4 L29.5 9.5"
+            stroke="url(#logoGradient)"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+        />
+
         <defs>
-            <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <linearGradient id="logoGradient" x1="0%" y1="100%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="#FF4500" />
                 <stop offset="100%" stopColor="#ff7849" />
             </linearGradient>
         </defs>
     </svg>
 );
-
 // Settings/Gear Icon (for admin)
 export const SettingsIcon = ({ className = '', size = 24 }: IconProps) => (
     <svg
