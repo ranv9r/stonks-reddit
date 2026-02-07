@@ -196,7 +196,7 @@ export const PortfolioView = ({ onStonkClick, isMarketOpen = true }: PortfolioVi
                 </div>
 
                 {/* Holdings List */}
-                <div className="flex flex-col gap-3">
+                <div id="tour-holdings" className="flex flex-col gap-3">
                     {portfolio.holdings.map((holding) => (
                         <button
                             key={holding.stonkId}

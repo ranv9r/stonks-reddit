@@ -83,6 +83,7 @@ export interface UserData {
     portfolio: Portfolio;   // Stonk holdings
     joinedAt: number;       // Unix timestamp
     lastTradeAt: number;    // Unix timestamp
+    tourCompleted: boolean; // Whether user has completed the guided tour
 }
 
 /** Portfolio display for client */

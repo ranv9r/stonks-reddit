@@ -629,6 +629,7 @@ export const StockDetailView = ({ stonkId, onBack, isMarketOpen = true }: StockD
                 {/* Header */}
                 <div className="px-4 py-3 flex items-center gap-4">
                     <button
+                        id="tour-back-button"
                         onClick={onBack}
                         className="p-2 hover:bg-[#1A1A1B] rounded-full transition-colors"
                     >
@@ -666,7 +667,7 @@ export const StockDetailView = ({ stonkId, onBack, isMarketOpen = true }: StockD
                         </div>
                     </div>
                     {/* ATH/ATL aligned right */}
-                    <div className="text-right pr-2">
+                    <div id="tour-stats-card" className="text-right pr-2">
                         <div className="text-gray-500 text-[10px]">ATH <span className="text-white font-mono font-medium">${(allTimeHigh / 100).toFixed(2)}</span></div>
                         <div className="text-gray-500 text-[10px]">ATL <span className="text-white font-mono font-medium">${(allTimeLow / 100).toFixed(2)}</span></div>
                     </div>
@@ -675,7 +676,7 @@ export const StockDetailView = ({ stonkId, onBack, isMarketOpen = true }: StockD
                 {/* Scrollable Content */}
                 <div className="flex-1 px-4 py-2 flex flex-col gap-3 overflow-auto">
                     {/* Interactive Chart - 1.8x height */}
-                    <div className="bg-[#1A1A1B] rounded-xl h-64 p-3">
+                    <div id="tour-price-chart" className="bg-[#1A1A1B] rounded-xl h-64 p-3">
                         {tierLoading ? (
                             <div className="flex items-center justify-center h-full text-gray-500">Loading chart...</div>
                         ) : (
@@ -729,7 +730,7 @@ export const StockDetailView = ({ stonkId, onBack, isMarketOpen = true }: StockD
                     )}
 
                     {/* Buy/Sell Buttons - Above Chat */}
-                    <div className="flex gap-4 mt-4">
+                    <div id="tour-trade-panel" className="flex gap-4 mt-4">
                         <button
                             onClick={() => openModal('sell')}
                             disabled={!isMarketOpen}

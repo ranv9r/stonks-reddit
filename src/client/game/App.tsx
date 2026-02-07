@@ -12,6 +12,7 @@ import { LeaderboardView } from './LeaderboardView';
 import { StockDetailView } from './views/StockDetailView';
 import { AdminView } from './views/AdminView';
 import { ChartIcon, BriefcaseIcon, TrophyIcon, LogoChartIcon, SettingsIcon } from './components/Icons';
+import { TourProvider } from './contexts/TourProvider';
 
 type View = 'market' | 'portfolio' | 'leaderboard' | 'detail' | 'admin';
 
@@ -234,6 +235,7 @@ export const App = () => {
 
           </button>
           <button
+            id="tour-nav-portfolio"
             onClick={() => setCurrentView('portfolio')}
             className={`relative flex-1 flex flex-col items-center gap-0.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'portfolio'
               ? 'text-[#FF4500]'
@@ -249,6 +251,7 @@ export const App = () => {
 
           </button>
           <button
+            id="tour-nav-leaderboard"
             onClick={() => setCurrentView('leaderboard')}
             className={`relative flex-1 flex flex-col items-center gap-0.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'leaderboard'
               ? 'text-[#FF4500]'

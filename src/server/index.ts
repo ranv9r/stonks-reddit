@@ -6,6 +6,7 @@ import marketRoutes from './routes/market';
 import modRoutes from './routes/mod';
 import schedulerRoutes from './routes/scheduler';
 import chatRoutes from './routes/chat';
+import tourRoutes from './routes/tour';
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use(marketRoutes);
 app.use(modRoutes);
 app.use(schedulerRoutes);
 app.use(chatRoutes);
+app.use(tourRoutes);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {

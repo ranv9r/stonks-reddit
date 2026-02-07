@@ -686,6 +686,7 @@ export async function getOrCreateUser(userId: string, startingBalance: number): 
             portfolio: JSON.parse(existing.portfolio || '{}'),
             joinedAt: parseInt(existing.joinedAt || '0'),
             lastTradeAt: parseInt(existing.lastTradeAt || '0'),
+            tourCompleted: existing.tourCompleted === 'true',
         };
     }
 
@@ -696,6 +697,7 @@ export async function getOrCreateUser(userId: string, startingBalance: number): 
         portfolio: {},
         joinedAt: now,
         lastTradeAt: 0,
+        tourCompleted: false, // New users haven't completed tour
     };
 
     await redis.hSet(REDIS_KEYS.userData(userId), {
@@ -703,6 +705,7 @@ export async function getOrCreateUser(userId: string, startingBalance: number): 
         portfolio: '{}',
         joinedAt: String(now),
         lastTradeAt: '0',
+        tourCompleted: 'false',
     });
 
     return userData;
@@ -720,6 +723,7 @@ export async function getUser(userId: string): Promise<UserData | null> {
         portfolio: JSON.parse(data.portfolio || '{}'),
         joinedAt: parseInt(data.joinedAt || '0'),
         lastTradeAt: parseInt(data.lastTradeAt || '0'),
+        tourCompleted: data.tourCompleted === 'true',
     };
 }
 
@@ -748,6 +752,7 @@ export async function resetUser(userId: string, startingBalance: number): Promis
         walletBalance: String(startingBalance),
         portfolio: '{}',
         lastTradeAt: '0',
+        tourCompleted: 'false', // Reset tour completion on game reset
     });
 }
 
@@ -758,6 +763,16 @@ export async function getAllUserIds(): Promise<string[]> {
     const entries = await redis.zRange(REDIS_KEYS.LEADERBOARD, 0, -1, { by: 'rank' });
     return entries.map(e => e.member);
 }
+
+/**
+ * Marks the user's tour as completed.
+ */
+export async function markTourCompleted(userId: string): Promise<void> {
+    await redis.hSet(REDIS_KEYS.userData(userId), {
+        tourCompleted: 'true',
+    });
+}
+
 
 // ============================================
 // LEADERBOARD OPERATIONS

@@ -90,7 +90,7 @@ export const LeaderboardView = () => {
     if (!leaderboard) return null;
 
     return (
-        <div className="px-4 py-4 sm:px-6 sm:py-6 fade-in max-w-3xl mx-auto mx-2">
+        <div id="tour-leaderboard" className="px-4 py-4 sm:px-6 sm:py-6 fade-in max-w-3xl mx-auto mx-2">
             {/* Header */}
             <div className="mb-6 text-center">
                 <div className="flex items-center justify-center gap-3 mb-2">

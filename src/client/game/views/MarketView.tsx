@@ -148,7 +148,7 @@ export const MarketView = ({ onStonkClick, subredditName, isMarketOpen = true }:
             )}
             <div className="px-6 py-4 sm:px-8 sm:py-6 fade-in">
                 {/* Wallet Balance Card */}
-                <div className="glass-card-elevated p-5 mb-5 relative overflow-hidden text-center">
+                <div id="tour-portfolio-card" className="glass-card-elevated p-5 mb-5 relative overflow-hidden text-center">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#FF4500] to-transparent opacity-10 blur-2xl rounded-full"></div>
                     <div className="relative z-10 flex flex-col items-center">
                         <div className="text-[#a1a1aa] text-[13px] font-medium mb-2 flex items-center gap-2">
@@ -170,10 +170,11 @@ export const MarketView = ({ onStonkClick, subredditName, isMarketOpen = true }:
                 </div>
 
                 {/* Stonks List */}
-                <div className="flex flex-col gap-3">
-                    {marketData.stonks.map((stonk) => (
+                <div id="tour-market-overview" className="flex flex-col gap-3">
+                    {marketData.stonks.map((stonk, index) => (
                         <button
                             key={stonk.id}
+                            id={index === 0 ? 'tour-stock-card' : undefined}
                             onClick={() => onStonkClick(stonk.id)}
                             className="w-full card p-4 hover:border-[#FF4500] hover:shadow-lg transition-all duration-200 group"
                         >
