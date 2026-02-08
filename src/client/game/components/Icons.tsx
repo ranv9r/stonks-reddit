@@ -270,3 +270,21 @@ export const RefreshIcon = ({ className = '', size = 24 }: IconProps) => (
         <path d="M16 21h5v-5" />
     </svg>
 );
+
+// Tag/Flair Icon
+export const TagIcon = ({ className = '', size = 24 }: IconProps) => (
+    <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={className}
+    >
+        <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l7.29-7.29c.94-.94 .94-2.48 0-3.42L12 2Z" />
+        <path d="M7 7h.01" />
+    </svg>
+);

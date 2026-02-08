@@ -1,16 +1,18 @@
 import { defineConfig } from 'vite';
-import tailwind from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwind()],
+  plugins: [react()],
   logLevel: 'warn',
   resolve: {
     alias: {
       '@protobufjs/inquire': path.resolve(__dirname, '../shared/inquire_stub.js'),
     },
+  },
+  css: {
+    postcss: '../../postcss.config.cjs',
   },
   build: {
     outDir: '../../dist/client',

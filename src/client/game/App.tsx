@@ -165,7 +165,7 @@ export const App = () => {
   return (
     <div className="flex flex-col h-screen bg-[#0f0f0f] max-w-[100vw]">
       {/* Header */}
-      <header className="flex items-center justify-center px-4 lg:px-6 py-4 lg:py-5 border-b border-[#27272a] safe-area-top bg-[#0f0f0f] relative mx-2">
+      <header className="flex items-center justify-center px-4 lg:px-6 py-2 lg:py-3 border-b border-[#27272a] safe-area-top bg-[#0f0f0f] relative mx-2">
         <div className="flex items-center gap-2 justify-center">
           <LogoChartIcon size={28} className="text-[#FF4500]" />
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gradient">
@@ -179,6 +179,58 @@ export const App = () => {
           </span>
         </div>
       </header>
+
+      {/* Desktop Navigation - Top (hidden on mobile) */}
+      {currentView !== 'detail' && (
+        <nav className="hidden lg:flex items-center justify-center gap-1 border-b border-[#27272a] bg-[#0f0f0f] px-4 py-2">
+          <button
+            onClick={() => setCurrentView('market')}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-200 ${currentView === 'market'
+                ? 'bg-[#FF4500] text-white shadow-lg'
+                : 'text-[#a1a1aa] hover:bg-[#18181b] hover:text-white'
+              }`}
+            aria-label="Market"
+          >
+            <ChartIcon size={20} />
+            <span className="font-medium">Market</span>
+          </button>
+          <button
+            onClick={() => setCurrentView('portfolio')}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-200 ${currentView === 'portfolio'
+                ? 'bg-[#FF4500] text-white shadow-lg'
+                : 'text-[#a1a1aa] hover:bg-[#18181b] hover:text-white'
+              }`}
+            aria-label="Portfolio"
+          >
+            <BriefcaseIcon size={20} />
+            <span className="font-medium">Portfolio</span>
+          </button>
+          <button
+            onClick={() => setCurrentView('leaderboard')}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-200 ${currentView === 'leaderboard'
+                ? 'bg-[#FF4500] text-white shadow-lg'
+                : 'text-[#a1a1aa] hover:bg-[#18181b] hover:text-white'
+              }`}
+            aria-label="Leaderboard"
+          >
+            <TrophyIcon size={20} />
+            <span className="font-medium">Leaderboard</span>
+          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setCurrentView('admin')}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-200 ${currentView === 'admin'
+                  ? 'bg-[#FF4500] text-white shadow-lg'
+                  : 'text-[#a1a1aa] hover:bg-[#18181b] hover:text-white'
+                }`}
+              aria-label="Admin"
+            >
+              <SettingsIcon size={20} />
+              <span className="font-medium">Admin</span>
+            </button>
+          )}
+        </nav>
+      )}
 
       {/* Main Content - Scrollable with View Transitions and Swipe Support */}
       <main
@@ -216,9 +268,9 @@ export const App = () => {
         </div>
       </main>
 
-      {/* Bottom Navigation - Fixed */}
+      {/* Bottom Navigation - Mobile Only (hidden on desktop) */}
       {currentView !== 'detail' && (
-        <nav className="flex items-center justify-around border-t border-[#27272a] bg-[#0f0f0f] safe-area-bottom shadow-lg">
+        <nav className="flex lg:hidden items-center justify-around border-t border-[#27272a] bg-[#0f0f0f] safe-area-bottom shadow-lg">
           <button
             onClick={() => setCurrentView('market')}
             className={`relative flex-1 flex flex-col items-center gap-0.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'market'

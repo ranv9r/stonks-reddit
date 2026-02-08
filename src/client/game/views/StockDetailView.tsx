@@ -367,30 +367,30 @@ const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPosit
                         </div>
                     </div>
 
-                    {/* Action Label */}
-                    <div className={`text-center py-3 rounded-xl mb-5 font-bold text-lg ${action === 'buy'
-                        ? 'bg-[#00D084]/15 text-[#00D084] border border-[#00D084]/30'
-                        : 'bg-[#FF4444]/15 text-[#FF4444] border border-[#FF4444]/30'
-                        }`}>
-                        {action === 'buy' ? 'Buy' : 'Sell'} {stonk.ticker}
-                    </div>
-
                     {/* Quantity Slider */}
                     <div className="mb-5">
                         <div className="flex justify-between items-center mb-3">
                             <label className="text-gray-400 text-sm">Quantity</label>
-                            <span className="text-white font-bold text-2xl">{quantity.toFixed(4).replace(/\.?0+$/, '')}</span>
+                            <span className="text-white font-bold text-2xl">{Number.isInteger(quantity) ? quantity : quantity.toFixed(2)}</span>
                         </div>
 
                         {maxQty > 0 ? (
                             <>
                                 <input
                                     type="range"
-                                    min={maxQty < 1 ? "0.0001" : "1"}
+                                    min={maxQty < 1 ? "0.01" : "1"}
                                     max={maxQty}
-                                    step="0.0001"
+                                    step="0.01"
                                     value={quantity}
-                                    onChange={(e) => setQuantity(parseFloat(e.target.value))}
+                                    onChange={(e) => {
+                                        let val = parseFloat(e.target.value);
+                                        // Soft snap to whole numbers (snap if within 0.05 of a whole number)
+                                        const nearestInt = Math.round(val);
+                                        if (Math.abs(val - nearestInt) < 0.05 && nearestInt >= 1) {
+                                            val = nearestInt;
+                                        }
+                                        setQuantity(val);
+                                    }}
                                     className="w-full h-3 bg-[#333] rounded-lg appearance-none cursor-pointer slider-thumb"
                                     style={{
                                         background: `linear-gradient(to right, ${action === 'buy' ? '#00D084' : '#FF4444'} 0%, ${action === 'buy' ? '#00D084' : '#FF4444'} ${(quantity / maxQty) * 100}%, #333 ${(quantity / maxQty) * 100}%, #333 100%)`
@@ -399,7 +399,7 @@ const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPosit
                                 />
                                 <div className="flex justify-between text-xs text-gray-500 mt-2">
                                     <span>{maxQty < 1 ? "0" : "1"}</span>
-                                    <span>Max: {maxQty.toFixed(4).replace(/\.?0+$/, '')}</span>
+                                    <span>Max: {Number.isInteger(maxQty) ? maxQty : maxQty.toFixed(2)}</span>
                                 </div>
                             </>
                         ) : (
@@ -631,7 +631,7 @@ export const StockDetailView = ({ stonkId, onBack, isMarketOpen = true }: StockD
                     <button
                         id="tour-back-button"
                         onClick={onBack}
-                        className="p-2 hover:bg-[#1A1A1B] rounded-full transition-colors"
+                        className="p-2 hover:bg-[#1A1A1B] rounded-full transition-colors flex items-center justify-center"
                     >
                         <ArrowLeftIcon size={20} className="text-white" />
                     </button>

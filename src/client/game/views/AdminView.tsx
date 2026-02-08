@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { showForm } from '@devvit/web/client';
-import { PlusIcon, TrashIcon, RefreshIcon } from '../components/Icons';
+import { PlusIcon, TrashIcon, RefreshIcon, TagIcon } from '../components/Icons';
 import type { StonkState } from '../../../shared/types/stonks';
 
 export const AdminView = () => {
@@ -253,22 +253,39 @@ export const AdminView = () => {
                 </button>
 
                 {/* Flair Toggle */}
-                <div className="flex items-center gap-3 px-4 py-2.5 bg-[#1f1f23] rounded-xl border border-[#3f3f46] shadow-md">
-                    <span className="text-sm font-medium text-white">User Flairs</span>
-                    <button
-                        onClick={handleToggleFlairs}
-                        disabled={actionLoading}
-                        className={`relative w-14 h-7 rounded-full transition-all duration-300 disabled:opacity-50 border-2 ${flairsEnabled
+                <div className="flex items-center gap-3 px-4 py-2.5 bg-[#1f1f23] rounded-lg border border-[#3f3f46] shadow-md">
+                    <div className="flex items-center gap-2">
+                        {/* @ts-ignore */}
+                        <TagIcon size={18} />
+                        <span className="text-sm font-medium text-white">User Flairs</span>
+                    </div>
+                    <div
+                        onClick={!actionLoading ? handleToggleFlairs : undefined}
+                        className={`relative rounded-full transition-all duration-300 cursor-pointer border-2 ${flairsEnabled
                             ? 'bg-gradient-to-r from-[#FF4500] to-[#ff6b35] border-[#FF4500]/50 shadow-[0_0_12px_rgba(255,69,0,0.4)]'
                             : 'bg-[#27272a] border-[#3f3f46]'
-                            }`}
-                        style={{ boxShadow: flairsEnabled ? '0 0 12px rgba(255, 69, 0, 0.4), inset 0 1px 2px rgba(0,0,0,0.2)' : 'inset 0 2px 4px rgba(0,0,0,0.3)' }}
+                            } ${!actionLoading ? '' : 'opacity-50 cursor-not-allowed'}`}
+                        style={{
+                            width: '44px',
+                            height: '24px',
+                            minWidth: '44px',
+                            minHeight: '24px',
+                            borderRadius: '9999px',
+                            boxShadow: flairsEnabled ? '0 0 12px rgba(255, 69, 0, 0.4), inset 0 1px 2px rgba(0,0,0,0.2)' : 'inset 0 2px 4px rgba(0,0,0,0.3)'
+                        }}
                     >
-                        <div className={`absolute top-0.5 w-6 h-6 rounded-full bg-white transition-all duration-300 ${flairsEnabled ? 'translate-x-7' : 'translate-x-0.5'
-                            }`}
-                            style={{ boxShadow: '0 2px 4px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.1)' }}
+                        <div
+                            className="absolute rounded-full bg-white transition-all duration-300 transform"
+                            style={{
+                                width: '16px',
+                                height: '16px',
+                                top: '2px',
+                                left: '2px',
+                                transform: flairsEnabled ? 'translateX(20px)' : 'translateX(0)',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.1)'
+                            }}
                         />
-                    </button>
+                    </div>
                     <span className={`text-xs font-semibold uppercase tracking-wide ${flairsEnabled ? 'text-[#22c55e]' : 'text-[#71717a]'}`}>
                         {flairsEnabled ? 'ON' : 'OFF'}
                     </span>
