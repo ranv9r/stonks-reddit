@@ -429,32 +429,23 @@ router.post('/internal/menu/reset-game', async (_req, res) => {
         }
         console.log(`[Reset] Reset ${allUserIds.length} users to $${STARTING_BALANCE / 100}`);
 
-        // Recreate stocks with fresh liquidity
-        const testStocks = [
-            { id: 'CSK', name: 'Chennai Super Kings', ticker: 'CSK', icon: '🦁' },
-            { id: 'MI', name: 'Mumbai Indians', ticker: 'MI', icon: '🔵' },
-            { id: 'RCB', name: 'Royal Challengers', ticker: 'RCB', icon: '🔴' },
-            { id: 'KKR', name: 'Knight Riders', ticker: 'KKR', icon: '💜' },
-            { id: 'DC', name: 'Delhi Capitals', ticker: 'DC', icon: '🦅' },
-        ];
-
-        for (const stock of testStocks) {
-            // Delete old price history
+        // Reset all existing stocks to base price (no longer recreates default stocks)
+        const stonks = await redisService.getAllStonks();
+        for (const stock of stonks) {
             await redisService.deletePriceHistory(stock.id);
-
             await redisService.createStonk(
                 stock.id,
                 stock.name,
                 stock.ticker,
                 stock.icon,
-                DEFAULT_X_VIRT,      // xVirt: $1M virtual cash
-                DEFAULT_X_VIRT / DEFAULT_BASE_PRICE, // yVirt for $100 price
-                'system'
+                DEFAULT_X_VIRT,
+                DEFAULT_X_VIRT / DEFAULT_BASE_PRICE,
+                'system',
+                stock.imageUrl
             );
-            console.log(`[Reset] Recreated: ${stock.ticker} at $100`);
         }
 
-        console.log(`[Reset] ✅ Full reset! ${allUserIds.length} users, ${testStocks.length} stocks at $100.`);
+        console.log(`[Reset] ✅ Full reset! ${allUserIds.length} users, ${stonks.length} stocks at $100.`);
 
         // AUTO-PAUSE MARKET ON RESET
         await redisService.setGameConfig({ eventActive: false });
