@@ -220,6 +220,8 @@ export const TourProvider: React.FC<TourProviderProps> = ({ children }) => {
                     continuous
                     showProgress
                     showSkipButton
+                    disableOverlayClose
+                    disableCloseOnEsc
                     callback={handleTourCallback}
                     styles={{
                         options: {
