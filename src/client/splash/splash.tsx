@@ -321,7 +321,7 @@ export const Splash = () => {
                     <div className="countdown-timer">{countdown}</div>
                   </>
                 ) : (
-                  <div className="coming-soon">Coming Soon</div>
+                  <div className="coming-soon">Cooking Stonks</div>
                 )}
               </div>
             ) : (

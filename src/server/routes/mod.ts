@@ -441,10 +441,17 @@ router.post('/internal/menu/schedule-event', async (_req, res) => {
                     fields: [
                         {
                             type: 'number',
+                            name: 'hours',
+                            label: 'Hours',
+                            defaultValue: 0,
+                            helpText: 'Hours until event starts (0-24)'
+                        },
+                        {
+                            type: 'number',
                             name: 'minutes',
-                            label: 'Start in (minutes)',
+                            label: 'Minutes',
                             defaultValue: 5,
-                            helpText: 'Event will auto-start after this many minutes'
+                            helpText: 'Minutes until event starts (0-59)'
                         }
                     ]
                 }
@@ -462,8 +469,16 @@ router.post('/internal/menu/schedule-event', async (_req, res) => {
 router.post('/internal/forms/schedule-event', async (req, res) => {
     try {
         const values = req.body.values || req.body;
-        const minutes = Math.max(Number(values.minutes) || 5, 1);
-        const startTime = Date.now() + (minutes * 60 * 1000);
+        const hours = Math.max(Math.min(Number(values.hours) || 0, 24), 0);
+        const minutes = Math.max(Math.min(Number(values.minutes) || 5, 59), 0);
+        const totalMinutes = (hours * 60) + minutes;
+
+        if (totalMinutes <= 0) {
+            res.json({ showToast: { text: '⚠️ Please set a time greater than 0!' } });
+            return;
+        }
+
+        const startTime = Date.now() + (totalMinutes * 60 * 1000);
 
         // Set scheduled start time (keep locked, keep paused)
         await redisService.setGameConfig({
@@ -479,8 +494,9 @@ router.post('/internal/forms/schedule-event', async (req, res) => {
             eventStartTime: startTime
         });
 
-        console.log(`[Schedule Event] ⏰ Event scheduled to start in ${minutes} minutes`);
-        res.json({ showToast: { text: `⏰ Event scheduled to start in ${minutes} minutes!` } });
+        const timeStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes} minutes`;
+        console.log(`[Schedule Event] ⏰ Event scheduled to start in ${timeStr}`);
+        res.json({ showToast: { text: `⏰ Event scheduled to start in ${timeStr}!` } });
     } catch (error) {
         console.error('[Schedule Event] ❌ Error:', error);
         res.status(500).json({});
@@ -563,37 +579,12 @@ router.post('/internal/triggers/on-app-install', async (_req, res) => {
             eventStartTime: null,
         });
 
-        // Seed test stocks (IPL Teams)
-        const testStocks = [
-            { id: 'CSK', name: 'Chennai Super Kings', ticker: 'CSK', icon: '🦁' },
-            { id: 'MI', name: 'Mumbai Indians', ticker: 'MI', icon: '🔵' },
-            { id: 'RCB', name: 'Royal Challengers', ticker: 'RCB', icon: '🔴' },
-            { id: 'KKR', name: 'Knight Riders', ticker: 'KKR', icon: '💜' },
-            { id: 'DC', name: 'Delhi Capitals', ticker: 'DC', icon: '🦅' },
-        ];
-
-        for (const stock of testStocks) {
-            const existing = await redisService.getStonk(stock.id);
-            if (!existing) {
-                await redisService.createStonk(
-                    stock.id,
-                    stock.name,
-                    stock.ticker,
-                    stock.icon,
-                    DEFAULT_X_VIRT,      // xVirt: $1M virtual cash
-                    DEFAULT_X_VIRT / DEFAULT_BASE_PRICE, // yVirt for $100 price
-                    'system'
-                );
-                console.log(`[Install] Created test stock: ${stock.ticker}`);
-            }
-        }
-
-        // Create initial post
+        // Create initial post (no stocks seeded - mods add them via admin panel)
         const post = await createPost();
 
         res.json({
             status: 'success',
-            message: `App installed. Post created with id ${post.id}. 5 test stocks created.`,
+            message: `App installed. Post created with id ${post.id}. Add stocks via admin panel.`,
         });
     } catch (error) {
         console.error('[Install] Error:', error);

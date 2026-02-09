@@ -378,7 +378,6 @@ export async function deleteStonk(stonkId: string): Promise<boolean> {
  */
 export async function addBuyVolume(stonkId: string, amount: number): Promise<void> {
     await redis.hIncrBy(REDIS_KEYS.stonkBatch(stonkId), 'buyVolume', amount);
-    console.log(`[DEBUG] addBuyVolume: ${stonkId} += $${amount / 100} (written to Redis)`);
 }
 
 /**
@@ -388,7 +387,6 @@ export async function addBuyVolume(stonkId: string, amount: number): Promise<voi
 export async function addSellVolume(stonkId: string, shares: number): Promise<void> {
     const scaledShares = Math.round(shares * 10000);
     await redis.hIncrBy(REDIS_KEYS.stonkBatch(stonkId), 'sellVolume', scaledShares);
-    console.log(`[DEBUG] addSellVolume: ${stonkId} += ${shares} shares (written to Redis)`);
 }
 
 /**
@@ -427,13 +425,12 @@ export async function getAndResetBatch(
         const sellVolume = parseInt(batch?.sellVolume || '0') / 10000;
 
         if (buyVolume > 0 || sellVolume > 0) {
-            console.log(`[DEBUG] getAndResetBatch ${stonkId}: buyVol=$${buyVolume / 100}, sellVol=${sellVolume}sh`);
+            // Batch has volume - will be processed
         }
 
         return { buyVolume, sellVolume };
     } catch (e) {
         // If rename fails (key doesn't exist aka no volume), ensure key exists and return 0
-        console.log(`[DEBUG] getAndResetBatch ${stonkId}: no batch (rename failed)`);
         await redis.hSet(key, {
             buyVolume: '0',
             sellVolume: '0',

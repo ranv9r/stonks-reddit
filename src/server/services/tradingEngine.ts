@@ -159,7 +159,6 @@ export async function executeSell(
     // Check stonk exists and is active (from cache for optimization)
     const cachedStonk = redisService.getStonkFromCache(stonkId);
     const stonk = cachedStonk || await redisService.getStonk(stonkId);
-    console.log(`[DEBUG] executeSell getStonk: stonkId=${stonkId}, fromCache=${!!cachedStonk}, price=${stonk?.currentPrice} (${(stonk?.currentPrice || 0) / 100}$)`);
 
     if (!stonk || !stonk.active) {
         return {
@@ -196,9 +195,6 @@ export async function executeSell(
     // 1. Calculate Value (No Slippage)
     const currentPrice = stonk.currentPrice;
     const actualValue = actualQuantity * currentPrice;
-
-    // DEBUG: Trace sell calculation
-    console.log(`[DEBUG] executeSell: userId=${userId}, stonk=${stonkId}, qty=${actualQuantity.toFixed(4)}, price=${currentPrice} (${currentPrice / 100}$), value=${actualValue} (${actualValue / 100}$), userBalance=${user.walletBalance}`);
 
     // 2. Add to Batch (direct Redis write for reliability)
     await redisService.addSellVolume(stonkId, actualQuantity);
