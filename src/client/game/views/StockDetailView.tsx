@@ -384,11 +384,19 @@ const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPosit
                                     value={quantity}
                                     onChange={(e) => {
                                         let val = parseFloat(e.target.value);
-                                        // Soft snap to whole numbers (snap if within 0.05 of a whole number)
-                                        const nearestInt = Math.round(val);
-                                        if (Math.abs(val - nearestInt) < 0.05 && nearestInt >= 1) {
-                                            val = nearestInt;
+
+                                        // If slider is at or very close to max, use exact maxQty
+                                        // This prevents residual amounts (e.g., 0.01) from being left unsold
+                                        if (maxQty - val < 0.015) {
+                                            val = maxQty;
+                                        } else {
+                                            // Soft snap to whole numbers (snap if within 0.05 of a whole number)
+                                            const nearestInt = Math.round(val);
+                                            if (Math.abs(val - nearestInt) < 0.05 && nearestInt >= 1) {
+                                                val = nearestInt;
+                                            }
                                         }
+
                                         setQuantity(val);
                                     }}
                                     className="w-full h-3 bg-[#333] rounded-lg appearance-none cursor-pointer slider-thumb"
@@ -708,7 +716,7 @@ export const StockDetailView = ({ stonkId, onBack, isMarketOpen = true }: StockD
                             <div className="text-gray-400 text-sm mb-3">Your Position</div>
                             <div className="flex justify-between">
                                 <div>
-                                    <div className="text-white font-medium">{userHolding.qty.toFixed(4)} shares</div>
+                                    <div className="text-white font-medium">{userHolding.qty.toFixed(2)} shares</div>
                                     <div className="text-gray-500 text-xs">
                                         Avg: ${(userHolding.avgPrice / 100).toFixed(2)}
                                     </div>
