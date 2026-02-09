@@ -208,7 +208,8 @@ export interface LeaderboardResponse {
 /** Game configuration stored in Redis */
 export interface GameConfig {
     eventActive: boolean;
-    eventStartTime: number | null;
+    eventLocked: boolean; // When true, users can't access app (only mods can)
+    eventStartTime: number | null; // Scheduled start time (null = no timer)
     tickInterval: number;
     startingBalance: number;
     flairsEnabled: boolean;

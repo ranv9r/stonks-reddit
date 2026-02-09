@@ -52,6 +52,10 @@ export const Splash = () => {
   const [stonks, setStonks] = useState<StonkPreview[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
   const [isMarketOpen, setIsMarketOpen] = useState(true);
+  const [isLocked, setIsLocked] = useState(false);
+  const [isMod, setIsMod] = useState(false); // Mods bypass lock screen
+  const [eventStartTime, setEventStartTime] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   const tickerConnection = useRef<{ disconnect: () => Promise<void> } | null>(null);
@@ -66,6 +70,7 @@ export const Splash = () => {
     fetchMarketPreview();
     fetchPortfolio();
     fetchGameConfig();
+    checkModStatus();
 
     // Realtime handles all updates (same pattern as market_status)
     const setupRealtime = async () => {
@@ -120,12 +125,19 @@ export const Splash = () => {
           },
         });
 
-        // 2. Subscribe to Market Status Updates
+        // 2. Subscribe to Market Status Updates (includes lock state)
         statusConnection.current = await connectRealtime({
           channel: 'market_status',
           onMessage: (data: any) => {
+            console.log('[Splash] market_status received:', data);
             if (data && typeof data.eventActive === 'boolean') {
               setIsMarketOpen(data.eventActive);
+            }
+            if (data && typeof data.eventLocked === 'boolean') {
+              setIsLocked(data.eventLocked);
+            }
+            if (data && 'eventStartTime' in data) {
+              setEventStartTime(data.eventStartTime);
             }
           }
         });
@@ -142,6 +154,39 @@ export const Splash = () => {
     };
   }, []);
 
+  // Countdown timer effect - updates every second when timer is set
+  useEffect(() => {
+    if (!eventStartTime) {
+      setCountdown('');
+      return;
+    }
+
+    const updateCountdown = () => {
+      const now = Date.now();
+      const diff = eventStartTime - now;
+
+      if (diff <= 0) {
+        setCountdown('');
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      if (hours > 0) {
+        setCountdown(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+      } else {
+        setCountdown(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+
+    return () => clearInterval(interval);
+  }, [eventStartTime]);
+
   /** Fetches market preview data from API */
   const fetchMarketPreview = async () => {
     try {
@@ -157,7 +202,7 @@ export const Splash = () => {
     }
   };
 
-  /** Fetches game config to check market status */
+  /** Fetches game config to check market and lock status */
   const fetchGameConfig = async () => {
     try {
       const res = await fetch('/api/config');
@@ -166,9 +211,28 @@ export const Splash = () => {
         if (typeof data.eventActive === 'boolean') {
           setIsMarketOpen(data.eventActive);
         }
+        if (typeof data.eventLocked === 'boolean') {
+          setIsLocked(data.eventLocked);
+        }
+        if ('eventStartTime' in data) {
+          setEventStartTime(data.eventStartTime);
+        }
       }
     } catch (e) {
       console.error('[Splash] Config fetch failed:', e);
+    }
+  };
+
+  /** Checks if user is a moderator */
+  const checkModStatus = async () => {
+    try {
+      const res = await fetch('/api/mod/check');
+      if (res.ok) {
+        const data = await res.json();
+        setIsMod(data.isModerator === true);
+      }
+    } catch (e) {
+      console.error('[Splash] Mod check failed:', e);
     }
   };
 
@@ -247,13 +311,27 @@ export const Splash = () => {
               alt="Stonks"
               className="stonks-guy-image"
             />
-            {/* CTA Button overlapping on the mascot */}
-            <button
-              className="splash-cta"
-              onClick={(e) => requestExpandedMode(e.nativeEvent, 'game')}
-            >
-              Start Trading
-            </button>
+
+            {/* CTA Area - Shows countdown/coming soon for non-mods, button for mods or when unlocked */}
+            {isLocked && !isMod ? (
+              <div className="splash-locked-area">
+                {countdown ? (
+                  <>
+                    <div className="countdown-label">Event starts in</div>
+                    <div className="countdown-timer">{countdown}</div>
+                  </>
+                ) : (
+                  <div className="coming-soon">Coming Soon</div>
+                )}
+              </div>
+            ) : (
+              <button
+                className="splash-cta"
+                onClick={(e) => requestExpandedMode(e.nativeEvent, 'game')}
+              >
+                Start Trading
+              </button>
+            )}
           </div>
 
           {context.username && (

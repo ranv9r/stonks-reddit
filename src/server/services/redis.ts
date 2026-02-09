@@ -827,6 +827,7 @@ export async function getGameConfig(): Promise<GameConfig> {
 
     return {
         eventActive: data?.eventActive === 'true',
+        eventLocked: data?.eventLocked !== 'false', // Default to locked if not set
         eventStartTime: data?.eventStartTime ? parseInt(data.eventStartTime) : null,
         tickInterval: parseInt(data?.tickInterval || '5000'),
         startingBalance: parseInt(data?.startingBalance || '1000000'),
@@ -843,8 +844,11 @@ export async function setGameConfig(config: Partial<GameConfig>): Promise<void> 
     if (config.eventActive !== undefined) {
         updates.eventActive = String(config.eventActive);
     }
+    if (config.eventLocked !== undefined) {
+        updates.eventLocked = String(config.eventLocked);
+    }
     if (config.eventStartTime !== undefined) {
-        updates.eventStartTime = String(config.eventStartTime);
+        updates.eventStartTime = config.eventStartTime === null ? '' : String(config.eventStartTime);
     }
     if (config.tickInterval !== undefined) {
         updates.tickInterval = String(config.tickInterval);

@@ -21,9 +21,33 @@ const router = Router();
  */
 router.post('/internal/scheduler/price-tick', async (_req, res) => {
     try {
-        // Check if market is active
+        // Check game config
         const config = await redisService.getGameConfig();
-        if (!config.eventActive) {
+
+        // Check for scheduled event auto-start
+        if (config.eventStartTime && Date.now() >= config.eventStartTime && !config.eventActive) {
+            console.log('[Scheduler] ⏰ Scheduled event time reached! Auto-starting...');
+
+            // Auto-start event
+            await redisService.setGameConfig({
+                eventActive: true,
+                eventLocked: false,
+                eventStartTime: null // Clear the timer
+            });
+
+            // Broadcast to all clients - they should immediately unlock
+            await realtime.send('market_status', {
+                eventActive: true,
+                eventLocked: false,
+                eventStartTime: null
+            });
+
+            console.log('[Scheduler] 🏁 Event auto-started!');
+            // Continue to run the price tick
+        }
+
+        // Check if market is active
+        if (!config.eventActive && !(config.eventStartTime && Date.now() >= config.eventStartTime)) {
             res.status(200).json({ status: 'skipped', reason: 'market paused' });
             return;
         }

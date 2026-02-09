@@ -21,6 +21,7 @@ export const App = () => {
   const [selectedStonkId, setSelectedStonkId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMarketOpen, setIsMarketOpen] = useState(false); // Default closed until fetched
+  const [isLocked, setIsLocked] = useState(false); // If true, non-mod users are kicked back to splash
   const statusConnection = useRef<{ disconnect: () => Promise<void> } | null>(null);
 
   // Touch swipe handling for mobile navigation
@@ -102,8 +103,12 @@ export const App = () => {
         statusConnection.current = await connectRealtime({
           channel: 'market_status',
           onMessage: (data: any) => {
+            console.log('[App] market_status received:', data);
             if (data && typeof data.eventActive === 'boolean') {
               setIsMarketOpen(data.eventActive);
+            }
+            if (data && typeof data.eventLocked === 'boolean') {
+              setIsLocked(data.eventLocked);
             }
           }
         });
@@ -121,6 +126,9 @@ export const App = () => {
           const data = await res.json();
           if (typeof data.eventActive === 'boolean') {
             setIsMarketOpen(data.eventActive);
+          }
+          if (typeof data.eventLocked === 'boolean') {
+            setIsLocked(data.eventLocked);
           }
         }
       } catch (e) {
@@ -186,8 +194,8 @@ export const App = () => {
           <button
             onClick={() => setCurrentView('market')}
             className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-200 ${currentView === 'market'
-                ? 'bg-[#FF4500] text-white shadow-lg'
-                : 'text-[#a1a1aa] hover:bg-[#18181b] hover:text-white'
+              ? 'bg-[#FF4500] text-white shadow-lg'
+              : 'text-[#a1a1aa] hover:bg-[#18181b] hover:text-white'
               }`}
             aria-label="Market"
           >
@@ -197,8 +205,8 @@ export const App = () => {
           <button
             onClick={() => setCurrentView('portfolio')}
             className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-200 ${currentView === 'portfolio'
-                ? 'bg-[#FF4500] text-white shadow-lg'
-                : 'text-[#a1a1aa] hover:bg-[#18181b] hover:text-white'
+              ? 'bg-[#FF4500] text-white shadow-lg'
+              : 'text-[#a1a1aa] hover:bg-[#18181b] hover:text-white'
               }`}
             aria-label="Portfolio"
           >
@@ -208,8 +216,8 @@ export const App = () => {
           <button
             onClick={() => setCurrentView('leaderboard')}
             className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-200 ${currentView === 'leaderboard'
-                ? 'bg-[#FF4500] text-white shadow-lg'
-                : 'text-[#a1a1aa] hover:bg-[#18181b] hover:text-white'
+              ? 'bg-[#FF4500] text-white shadow-lg'
+              : 'text-[#a1a1aa] hover:bg-[#18181b] hover:text-white'
               }`}
             aria-label="Leaderboard"
           >
@@ -220,8 +228,8 @@ export const App = () => {
             <button
               onClick={() => setCurrentView('admin')}
               className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-200 ${currentView === 'admin'
-                  ? 'bg-[#FF4500] text-white shadow-lg'
-                  : 'text-[#a1a1aa] hover:bg-[#18181b] hover:text-white'
+                ? 'bg-[#FF4500] text-white shadow-lg'
+                : 'text-[#a1a1aa] hover:bg-[#18181b] hover:text-white'
                 }`}
               aria-label="Admin"
             >
