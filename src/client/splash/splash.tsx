@@ -148,9 +148,20 @@ export const Splash = () => {
 
     setupRealtime();
 
+    // Re-fetch portfolio when user returns from game (visibility change)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[Splash] Regained visibility, refreshing portfolio...');
+        fetchPortfolio();
+        fetchMarketPreview();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     return () => {
       tickerConnection.current?.disconnect();
       statusConnection.current?.disconnect();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []);
 
@@ -275,6 +286,51 @@ export const Splash = () => {
     checkOverflow();
   }, [stonks, loading, checkOverflow]);
 
+  /** JS-driven scroll animation so click hitboxes stay aligned with visuals */
+  useEffect(() => {
+    if (!shouldAutoScroll || !marketCardsRef.current) return;
+
+    const container = marketCardsRef.current;
+    const inner = container.querySelector('.market-cards-inner') as HTMLElement;
+    if (!inner) return;
+
+    let rafId: number;
+    let paused = false;
+    let accum = 0;
+    const speed = 0.15; // pixels per frame (~9px/s at 60fps, matches old 15s animation)
+
+    const step = () => {
+      if (!paused) {
+        accum += speed;
+        if (accum >= 1) {
+          const px = Math.floor(accum);
+          accum -= px;
+          container.scrollTop += px;
+          // When scrolled past the first half (original cards), jump back seamlessly
+          const halfHeight = inner.scrollHeight / 2;
+          if (container.scrollTop >= halfHeight) {
+            container.scrollTop -= halfHeight;
+          }
+        }
+      }
+      rafId = requestAnimationFrame(step);
+    };
+
+    // Pause on hover
+    const onEnter = () => { paused = true; };
+    const onLeave = () => { paused = false; };
+    container.addEventListener('mouseenter', onEnter);
+    container.addEventListener('mouseleave', onLeave);
+
+    rafId = requestAnimationFrame(step);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      container.removeEventListener('mouseenter', onEnter);
+      container.removeEventListener('mouseleave', onLeave);
+    };
+  }, [shouldAutoScroll]);
+
   const netWorth = portfolio ? (portfolio.walletBalance + portfolio.totalValue) / 100 : 0;
 
   return (
@@ -387,7 +443,14 @@ export const Splash = () => {
               ))}
               {/* Duplicate cards for seamless loop */}
               {shouldAutoScroll && !loading && stonks.map((stonk) => (
-                <div key={`${stonk.ticker}-dup`} className="market-card">
+                <div
+                  key={`${stonk.ticker}-dup`}
+                  className="market-card cursor-pointer hover:border-[#FF4500] hover:scale-[1.02] transition-all"
+                  onClick={(e) => {
+                    localStorage.setItem('openStonkId', stonk.id);
+                    requestExpandedMode(e.nativeEvent, 'game');
+                  }}
+                >
                   <div className="card-left">
                     {stonk.imageUrl ? (
                       <img src={stonk.imageUrl} alt={stonk.ticker} className="stonk-logo" />
