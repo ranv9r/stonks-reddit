@@ -192,7 +192,7 @@ export const LeaderboardView = () => {
                             {/* User Info */}
                             <div className="flex-1 min-w-0">
                                 <div className="font-bold text-[15px] text-white">
-                                    Your Rank
+                                    {leaderboard.userRank.username}
                                 </div>
                                 <span className="inline-block mt-1 text-[11px] text-[#FF4500] bg-[#FF4500]/10 px-2 py-0.5 rounded-full font-semibold">
                                     You

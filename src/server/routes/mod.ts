@@ -8,6 +8,7 @@ import { context, reddit, realtime } from '@devvit/web/server';
 import { STARTING_BALANCE, DEFAULT_BASE_PRICE, DEFAULT_X_VIRT } from '../../shared/config';
 import * as redisService from '../services/redis';
 import * as stressTestService from '../services/stressTestService';
+import * as leaderboardService from '../services/leaderboardService';
 import { createPost } from '../core/post';
 
 const router = Router();
@@ -411,7 +412,14 @@ router.post('/internal/menu/stop-event', async (_req, res) => {
         // Broadcast market status (eventLocked stays false - users can still view)
         await realtime.send('market_status', { eventActive: false });
 
-        console.log('[Stop Event] 🛑 Event paused by moderator');
+        // Run final leaderboard update so users see latest standings
+        console.log('[Stop Event] 🏆 Running final leaderboard update...');
+        await leaderboardService.updateLeaderboard();
+
+        // Broadcast leaderboard update to all clients
+        await realtime.send('leaderboard_update', { timestamp: Date.now() });
+
+        console.log('[Stop Event] 🛑 Event paused by moderator (leaderboard updated)');
         res.json({ showToast: { text: '🛑 Trading Paused' } });
     } catch (error) {
         console.error('[Stop Event] ❌ Error:', error);

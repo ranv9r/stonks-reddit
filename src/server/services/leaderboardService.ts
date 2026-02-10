@@ -63,11 +63,21 @@ export async function getLeaderboard(
 
         if (!isInTop) {
             rank = await redisService.getUserRank(currentUserId);
+            const netWorth = await tradingEngine.calculateNetWorth(currentUserId, STARTING_BALANCE);
             if (rank !== null) {
-                const netWorth = await tradingEngine.calculateNetWorth(currentUserId, STARTING_BALANCE);
-                // Placeholder, will fetch name below
+                // User is in sorted set but not in top N
                 userRankEntry = {
                     rank: rank + 1,
+                    userId: currentUserId,
+                    username: 'You',
+                    netWorth,
+                    isCurrentUser: true,
+                };
+            } else {
+                // User not in sorted set at all (hasn't traded yet) - still show them
+                const totalCount = await redisService.getLeaderboardCount();
+                userRankEntry = {
+                    rank: totalCount + 1, // After everyone else
                     userId: currentUserId,
                     username: 'You',
                     netWorth,

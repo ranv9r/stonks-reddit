@@ -54,6 +54,13 @@ router.post('/internal/scheduler/price-tick', async (_req, res) => {
 
         console.log(`[Price Tick] Starting at ${new Date().toISOString()}`);
 
+        // Capture pre-batch prices for computing priceChangePercent
+        const preBatchStonks = await redisService.getAllStonks();
+        const preBatchPrices = new Map<string, number>();
+        for (const s of preBatchStonks) {
+            preBatchPrices.set(s.id, s.currentPrice);
+        }
+
         // CRITICAL: Flush accumulated volumes to Redis BEFORE resolving batches
         // This ensures trades from this tick are included in the current batch resolution
         await redisService.flushPendingVolumes();
@@ -86,13 +93,19 @@ router.post('/internal/scheduler/price-tick', async (_req, res) => {
         // Broadcast updated market data to all clients
         const stonks = await redisService.getAllStonks();
         const payload = {
-            stonks: stonks.map(s => ({
-                id: s.id,
-                ticker: s.ticker,
-                icon: s.icon,
-                currentPrice: s.currentPrice,
-                priceChangePercent: 0, // Will be calculated on client if needed
-            })),
+            stonks: stonks.map(s => {
+                const prevPrice = preBatchPrices.get(s.id) || s.basePrice;
+                const priceChangePercent = prevPrice > 0
+                    ? ((s.currentPrice - prevPrice) / prevPrice) * 100
+                    : 0;
+                return {
+                    id: s.id,
+                    ticker: s.ticker,
+                    icon: s.icon,
+                    currentPrice: s.currentPrice,
+                    priceChangePercent,
+                };
+            }),
             timestamp: Date.now(),
         };
         await realtime.send('global_ticker', payload);

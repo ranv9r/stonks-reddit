@@ -798,11 +798,15 @@ export async function getTopLeaderboard(limit: number): Promise<{ userId: string
 }
 
 /**
- * Gets a user's rank on the leaderboard.
+ * Gets a user's rank on the leaderboard (descending, highest score = rank 0).
+ * zRank returns ascending order (lowest=0), so we invert it.
  */
 export async function getUserRank(userId: string): Promise<number | null> {
-    const rank = await redis.zRank(REDIS_KEYS.LEADERBOARD, userId);
-    return rank !== undefined ? rank : null;
+    const ascRank = await redis.zRank(REDIS_KEYS.LEADERBOARD, userId);
+    if (ascRank === undefined) return null;
+    const total = await redis.zCard(REDIS_KEYS.LEADERBOARD);
+    // Convert ascending to descending: highest score gets rank 0
+    return total - 1 - ascRank;
 }
 
 /**
