@@ -44,8 +44,8 @@ router.get('/api/market', async (_req, res) => {
     try {
         const { userId } = context;
 
-        // Get all stonks
-        const stonks = await redisService.getAllStonks();
+        // Get all stonks from in-memory cache (0 Redis calls, refreshed every tick)
+        const stonks = await redisService.getAllStonksFromCache();
 
         // Get user data
         const user = userId

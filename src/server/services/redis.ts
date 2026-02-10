@@ -92,6 +92,19 @@ export function getStonkFromCache(stonkId: string): StonkState | null {
 }
 
 /**
+ * Gets all stonks from the in-memory cache (0 Redis calls).
+ * Falls back to Redis if cache is empty (before first tick).
+ */
+export async function getAllStonksFromCache(): Promise<StonkState[]> {
+    if (stonkCache.size > 0) {
+        return Array.from(stonkCache.values()).filter(s => s.active);
+    }
+    // Cache empty (first load before scheduler runs) — populate from Redis
+    await refreshStonkCache();
+    return Array.from(stonkCache.values()).filter(s => s.active);
+}
+
+/**
  * Flushes all pending buy/sell volumes to Redis.
  * NOTE: Regular trades now write directly to Redis via addBuyVolume/addSellVolume.
  * This function is kept for stress test bots which may still use in-memory accumulators.
