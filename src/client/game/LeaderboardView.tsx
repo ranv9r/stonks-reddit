@@ -21,15 +21,20 @@ interface LeaderboardData {
     totalParticipants: number;
 }
 
+/** Module-level cache - persists across tab switches, only refreshed on realtime update */
+let cachedLeaderboard: LeaderboardData | null = null;
+
 export const LeaderboardView = () => {
-    const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(cachedLeaderboard);
+    const [loading, setLoading] = useState(cachedLeaderboard === null);
     const [error, setError] = useState<string | null>(null);
     const connectionRef = useRef<{ disconnect: () => Promise<void> } | null>(null);
 
     useEffect(() => {
-        // Fetch leaderboard once on mount
-        fetchLeaderboard();
+        // Only fetch from API if no cached data (first load or app restart)
+        if (!cachedLeaderboard) {
+            fetchLeaderboard();
+        }
 
         // Subscribe to realtime updates for leaderboard refresh notifications
         const setupRealtime = async () => {
@@ -56,12 +61,13 @@ export const LeaderboardView = () => {
         };
     }, []);
 
-    /** Fetches leaderboard data from the API. */
+    /** Fetches leaderboard data from the API and updates cache. */
     const fetchLeaderboard = async () => {
         try {
             const res = await fetch('/api/leaderboard');
             if (!res.ok) throw new Error('Failed to fetch leaderboard');
             const data = await res.json();
+            cachedLeaderboard = data; // Update module-level cache
             setLeaderboard(data);
             setError(null);
         } catch (err) {
