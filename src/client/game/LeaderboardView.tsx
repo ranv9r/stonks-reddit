@@ -106,6 +106,9 @@ export const LeaderboardView = () => {
                 <p className="text-[13px] text-[#a1a1aa]">
                     {leaderboard.totalParticipants} total participants
                 </p>
+                <p className="text-[11px] text-[#52525b] mt-1">
+                    (Refreshes every 30 mins)
+                </p>
             </div>
 
             {/* Leaderboard List */}

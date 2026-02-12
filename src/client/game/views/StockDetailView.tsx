@@ -429,11 +429,7 @@ const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPosit
                                 Buy Limit Remaining: <span className="text-gray-300 font-mono">${(spendLimit.remaining / 100).toFixed(2)}</span>
                             </div>
                         )}
-                        {action === 'sell' && (
-                            <div className="mt-2 text-xs text-center text-gray-500">
-                                Sell Limit: <span className="text-[#00D084] font-bold">UNLIMITED</span>
-                            </div>
-                        )}
+
                     </div>
 
                     {/* Total Cost / Value */}

@@ -1,9 +1,7 @@
 
-# 🚀 Stonk Street – The One and Only Stonks Market of Reddit
+# Stonks – The One and Only Stonks Market of Reddit
 
-> **"Turn Your Subreddit Into A Stock Market!"**
-
-Stonk Street is a highly adaptable, community-driven web application built for **any** subreddit to adopt and customize. Whether it's **F1**, **FIFA**, **Cricket**, or simply **Trending memes**, Stonk Street allows moderators to turn ongoing discussions into engaging, competitive trading events.
+Stonks is a highly adaptable, community-driven web application built for **any** subreddit to adopt and customize. Whether it's **F1**, **Anime**, **Football Clubs**, or simply **Trending Memes**, Stonks allows moderators to turn ongoing discussions into engaging, competitive trading events.
 
 ---
 
@@ -12,15 +10,15 @@ Stonk Street is a highly adaptable, community-driven web application built for *
 ### 💡 Inspiration
 Our inspiration comes from Reddit events like **r/place** and **r/field**. These projects captured the **essence of Reddit**—collaborative, chaotic, and deeply engaging. We loved the optimizations used in r/field, but we noticed that many Devvit games are too niche or specific to a single subreddit.
 
-We wanted to build something **robust, configurable, and universally adaptable**. A financial engine that empowers communities to engage with current trends in real-time. If there's a World Cup, a political debate, or a viral meme war, Stonk Street lets you trade on the outcome.
+We wanted to build something **robust, configurable, and universally adaptable**. A financial engine that empowers communities to engage with current trends in real-time. If there's a World Cup, a political debate, or a viral meme war, Stonks lets you trade on the outcome.
 
 ### 🎮 Features & Why We Built Them
 
 We didn't just want a "game"; we wanted a platform that feels alive.
 
-### 📱 The Stonk Street Experience
+### 📱 The Stonks Experience
 
-We didn't just want a "game"; we aimed for a complete, immersive trading ecosystem. Here is how a user experiences Stonk Street:
+We didn't just want a "game"; we aimed for a complete, immersive trading ecosystem. Here is how a user experiences Stonks:
 
 #### 1. Discovery & Analysis 📈
 When a user first joins, they are granted **$10,000** in starting capital to begin their trading journey.
@@ -30,7 +28,7 @@ The journey starts on the **Market Dashboard**, where users can browse all liste
 #### 2. The Trading Floor 💸
 Once a user spots an opportunity, they can **Buy** or **Sell** instantly.
 *   **Supply & Demand**: Prices are not random. They are determined by a **Virtual Automated Market Maker (AMM)**. Every Buy pushes the price up; every Sell pushes it down.
-*   **Fairness**: Our **Frequent Batch Auction** system aggregates all trades in 5-second windows, so as to not overburden the architecture with too frequent market updates.
+*   Our **Frequent Batch Auction** system aggregates all trades in 5-second windows, so as to not overburden the architecture with too frequent market updates.
 
 #### 3. Portfolio Management 💼
 Users can track their empire in the **Portfolio View**.
@@ -38,7 +36,7 @@ Users can track their empire in the **Portfolio View**.
 *   **Holdings**: See exactly how much skin you have in the game for each stock, with average buy price and current return on investment.
 
 #### 4. Community Engagement 💬
-Trading is social. Stonk Street includes **Stock-Specific Live Chat** rooms.
+Trading is social. Stonks includes **Stock-Specific Live Chat** rooms.
 *   **Live Chat**: Users can shill their bags, panic sell together, or coordinate "moon missions" without leaving the app.
 *   **Leaderboards**: A global ranking system tracks the top traders, adding a competitive layer that fuels engagement and keeps users coming back.
 
@@ -62,10 +60,11 @@ Devvit functions are ephemeral. We couldn't run a continuous matching engine.
 *   **Solution**: We implemented a **Frequent Batch Auction** model.
 *   **How it works**: We accumulate all Buy/Sell orders into a Redis Hash during a 5-second window. At the end of the tick, a scheduled job resolves the entire batch in **O(1)** time using a bonding curve formula. This separates the "Intent" (User clicking buy) from the "Execution" (Price update), allowing us to handle massive concurrency.
 
-#### 2. Virtual AMM (Automated Market Maker)
-We rejected the traditional Order Book model (too memory intensive).
-*   **Solution**: We used a **Constant Product Bonding Curve** (`k = x * y`) with **Virtual Reserves**.
-*   **Why**: This guarantees **infinite liquidity**. A user can *always* find a buyer or seller, even if no other players are online. It also creates a predictable price trajectory that rewards early adopters—perfect for meme stocks.
+#### 2. Custom Virtual AMM (Automated Market Maker)
+We heavily researched traditional Order Book models but found them too memory intensive for this environment.
+*   **Solution**: We designed a unique, **in-house Automated Market Maker** specifically tailored for Devvit's constraints.
+*   **Innovation**: Unlike a simple constant bonding curve, our model features a **Dynamic Liquidity Scaling** mechanism. The liquidity constant scales intelligently with price action.
+*   **Why**: This prevents the "infinite price explosion" often seen in basic bonding curves, ensuring that stocks remain affordable and tradable even after massive rallies. It guarantees **infinite liquidity**—users can always trade—while maintaining a stable, sustainable economy.
 
 #### 3. Optimistic Updates & Realtime
 *   **Challenge**: Users hate latency. Waiting 5 seconds for a price update feels sluggish.
@@ -77,7 +76,7 @@ We rejected the traditional Order Book model (too memory intensive).
 
 Our biggest challenge was **optimizing for high concurrency**. A live trading game on Reddit needs to handle thousands of users spamming "BUY" at once.
 
-*   **Throughput**: We optimized the system to handle **60,000+ trades per minute**.
+*   **Throughput**: We optimized the system to handle **60,000+ trades per minute** or **3.6 million trades per hour**.
 *   **Redis Limits**: We hit the limits of Redis throughput. To solve this, we implemented **Write Coalescing**—instead of updating the database for every single trade, we aggregate volume in memory and flush to Redis in batches.
 *   **State Management**: Syncing the "Portfolio" view across multiple devices while trades were happening in the background required a complex state-reconciliation logic.
 
@@ -91,4 +90,4 @@ Our biggest challenge was **optimizing for high concurrency**. A live trading ga
 
 ---
 
-Built with ❤️ and ☕ by a team of two.
+Built with ❤️ and ☕.
