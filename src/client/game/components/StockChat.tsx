@@ -20,13 +20,14 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
     // Realtime connection ref
     const realtimeRef = useRef<{ disconnect: () => Promise<void> } | null>(null);
 
-    // Initial fetch and subscription setup
+    // Initial fetch and realtime setup
     useEffect(() => {
         // Reset state when stonkId changes
         setMessages([]);
         setLoading(true);
         prevMessagesLenRef.current = 0;
 
+        // Fetch initial messages from Reddit
         const fetchMessages = async () => {
             try {
                 const res = await fetch(`/api/chat/${stonkId}`);
@@ -41,6 +42,7 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
             }
         };
 
+        // Set up realtime WebSocket for instant updates
         const setupRealtime = async () => {
             try {
                 realtimeRef.current = await connectRealtime({
@@ -62,7 +64,7 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
             }
         };
 
-        // Initial load and sub
+        // Initial load + realtime subscription
         fetchMessages();
         setupRealtime();
 
@@ -101,13 +103,12 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
                 body: JSON.stringify({ stonkId, text: newMessage }),
             });
 
-            if (!res.ok) throw new Error('Failed to send message');
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.error || 'Failed to send message');
+            }
 
-            // The message will come back via realtime, so we don't strictly need to add it here,
-            // but adding it optimistically feels faster. 
-            // However, to avoid complexity with duplicates before the socket event arrives,
-            // we'll just wait for the socket or the response.
-            // Actually, let's just clear input and wait. Realtime is fast enough.
+            // Clear input immediately - message will come back via realtime
             setNewMessage('');
 
             // Force scroll to bottom when user sends a message
@@ -116,7 +117,8 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
             }
         } catch (error) {
             console.error('Error sending message:', error);
-            alert('Failed to send message. Are you logged in?');
+            const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
+            alert(errorMessage);
         } finally {
             setSending(false);
         }
@@ -130,7 +132,10 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
         <div className={`flex flex-col h-full bg-slate-900/50 rounded-lg border border-slate-700/50 backdrop-blur-sm overflow-hidden ${className}`}>
             {/* Header */}
             <div className="p-3 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/30">
-                <h3 className="font-bold text-slate-200 text-sm uppercase tracking-wider">Live Chat</h3>
+                <div className="flex flex-col">
+                    <h3 className="font-bold text-slate-200 text-sm uppercase tracking-wider">Live Chat</h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Posted as Reddit comments</p>
+                </div>
                 <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                     <span className="text-xs text-slate-400">Live</span>
