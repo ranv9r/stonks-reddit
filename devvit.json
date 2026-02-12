@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "stonk-street",
+  "name": "pump-o-dump2",
   "post": {
     "dir": "dist/client",
     "entrypoints": {
@@ -23,7 +23,11 @@
   "permissions": {
     "redis": true,
     "media": true,
-    "reddit": true
+    "reddit": {
+      "asUser": [
+        "SUBMIT_COMMENT"
+      ]
+    }
   },
   "scheduler": {
     "tasks": {
@@ -107,6 +111,6 @@
     "onAppInstall": "/internal/triggers/on-app-install"
   },
   "dev": {
-    "subreddit": "stonk_street_dev"
+    "subreddit": "pump_o_dump2_dev"
   }
 }
