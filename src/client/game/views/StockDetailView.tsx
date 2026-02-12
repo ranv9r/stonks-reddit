@@ -401,7 +401,12 @@ const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPosit
                                     }}
                                     className="w-full h-3 bg-[#333] rounded-lg appearance-none cursor-pointer slider-thumb"
                                     style={{
-                                        background: `linear-gradient(to right, ${action === 'buy' ? '#00D084' : '#FF4444'} 0%, ${action === 'buy' ? '#00D084' : '#FF4444'} ${(quantity / maxQty) * 100}%, #333 ${(quantity / maxQty) * 100}%, #333 100%)`
+                                        background: (() => {
+                                            const minVal = maxQty < 1 ? 0.01 : 1;
+                                            const pct = ((quantity - minVal) / (maxQty - minVal)) * 100;
+                                            const color = action === 'buy' ? '#00D084' : '#FF4444';
+                                            return `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, #333 ${pct}%, #333 100%)`;
+                                        })()
                                     }}
                                     disabled={trading}
                                 />

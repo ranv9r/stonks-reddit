@@ -113,11 +113,16 @@ export const LeaderboardView = () => {
                     };
                     const colors = rankColors[entry.rank as 1 | 2 | 3];
 
+                    // Dynamic font size based on username length (mobile only via CSS)
+                    // Reddit max = 20 chars, scale from 18px (short) to 13px (long)
+                    const usernameLen = entry.username.length;
+                    const mobileFontSize = usernameLen <= 10 ? 18 : usernameLen <= 15 ? 16 : usernameLen <= 18 ? 14 : 13;
+
                     return (
                         <div
                             key={entry.userId}
                             className={`
-                                relative overflow-hidden rounded-xl px-6 py-4 transition-all duration-200
+                                relative overflow-hidden rounded-xl px-3 sm:px-6 py-4 transition-all duration-200
                                 ${isTopThree
                                     ? `bg-gradient-to-br ${colors?.bg} border-2 ${colors?.border} ${colors?.glow}`
                                     : 'card border-2 border-transparent hover:border-[#27272a]'
@@ -125,10 +130,10 @@ export const LeaderboardView = () => {
                                 ${entry.isCurrentUser && !isTopThree ? 'border-[#FF4500]! shadow-lg' : ''}
                             `}
                         >
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 sm:gap-4">
                                 {/* Rank Badge */}
                                 <div className={`
-                                    flex items-center justify-center w-10 h-10 rounded-full font-bold text-[15px] shrink-0
+                                    flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full font-bold text-[14px] sm:text-[15px] shrink-0
                                     ${isTopThree
                                         ? `${colors?.text} bg-gradient-to-br ${colors?.bg} border-2 ${colors?.border}`
                                         : 'text-[#71717a] bg-[#18181b] border-2 border-[#27272a]'
@@ -142,20 +147,23 @@ export const LeaderboardView = () => {
 
                                 {/* User Info */}
                                 <div className="flex-1 min-w-0">
-                                    <div className={`font-bold text-[15px] ${isTopThree ? 'text-white' : 'text-white'
-                                        }`}>
-                                        {entry.username}
+                                    <div
+                                        className={`font-bold ${isTopThree ? 'text-white' : 'text-white'}`}
+                                        style={{ fontSize: `${mobileFontSize}px` }}
+                                    >
+                                        <span className="sm:hidden">{entry.username}</span>
+                                        <span className="hidden sm:inline text-[15px]">{entry.username}</span>
                                     </div>
                                     {entry.isCurrentUser && (
-                                        <span className="inline-block mt-1 text-[11px] text-[#FF4500] bg-[#FF4500]/10 px-2 py-0.5 rounded-full font-semibold">
+                                        <span className="inline-block mt-1 text-[10px] sm:text-[11px] text-[#FF4500] bg-[#FF4500]/10 px-2 py-0.5 rounded-full font-semibold">
                                             You
                                         </span>
                                     )}
                                 </div>
 
                                 {/* Net Worth */}
-                                <div className="text-right pl-4">
-                                    <div className={`font-bold text-[18px] ${isTopThree ? 'text-white' : 'text-white'
+                                <div className="text-right pl-1 sm:pl-4 shrink-0">
+                                    <div className={`font-bold text-[16px] sm:text-[18px] whitespace-nowrap ${isTopThree ? 'text-white' : 'text-white'
                                         }`}>
                                         ${(entry.netWorth / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </div>
@@ -184,7 +192,7 @@ export const LeaderboardView = () => {
                             {/* User Info */}
                             <div className="flex-1 min-w-0">
                                 <div className="font-bold text-[15px] text-white">
-                                    Your Rank
+                                    {leaderboard.userRank.username}
                                 </div>
                                 <span className="inline-block mt-1 text-[11px] text-[#FF4500] bg-[#FF4500]/10 px-2 py-0.5 rounded-full font-semibold">
                                     You

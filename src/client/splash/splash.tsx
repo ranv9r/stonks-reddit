@@ -52,6 +52,10 @@ export const Splash = () => {
   const [stonks, setStonks] = useState<StonkPreview[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
   const [isMarketOpen, setIsMarketOpen] = useState(true);
+  const [isLocked, setIsLocked] = useState(false);
+  const [isMod, setIsMod] = useState(false); // Mods bypass lock screen
+  const [eventStartTime, setEventStartTime] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   const tickerConnection = useRef<{ disconnect: () => Promise<void> } | null>(null);
@@ -66,6 +70,7 @@ export const Splash = () => {
     fetchMarketPreview();
     fetchPortfolio();
     fetchGameConfig();
+    checkModStatus();
 
     // Realtime handles all updates (same pattern as market_status)
     const setupRealtime = async () => {
@@ -120,12 +125,19 @@ export const Splash = () => {
           },
         });
 
-        // 2. Subscribe to Market Status Updates
+        // 2. Subscribe to Market Status Updates (includes lock state)
         statusConnection.current = await connectRealtime({
           channel: 'market_status',
           onMessage: (data: any) => {
+            console.log('[Splash] market_status received:', data);
             if (data && typeof data.eventActive === 'boolean') {
               setIsMarketOpen(data.eventActive);
+            }
+            if (data && typeof data.eventLocked === 'boolean') {
+              setIsLocked(data.eventLocked);
+            }
+            if (data && 'eventStartTime' in data) {
+              setEventStartTime(data.eventStartTime);
             }
           }
         });
@@ -136,11 +148,55 @@ export const Splash = () => {
 
     setupRealtime();
 
+    // Re-fetch portfolio when user returns from game (visibility change)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[Splash] Regained visibility, refreshing portfolio...');
+        fetchPortfolio();
+        fetchMarketPreview();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     return () => {
       tickerConnection.current?.disconnect();
       statusConnection.current?.disconnect();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []);
+
+  // Countdown timer effect - updates every second when timer is set
+  useEffect(() => {
+    if (!eventStartTime) {
+      setCountdown('');
+      return;
+    }
+
+    const updateCountdown = () => {
+      const now = Date.now();
+      const diff = eventStartTime - now;
+
+      if (diff <= 0) {
+        setCountdown('');
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      if (hours > 0) {
+        setCountdown(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+      } else {
+        setCountdown(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+
+    return () => clearInterval(interval);
+  }, [eventStartTime]);
 
   /** Fetches market preview data from API */
   const fetchMarketPreview = async () => {
@@ -157,7 +213,7 @@ export const Splash = () => {
     }
   };
 
-  /** Fetches game config to check market status */
+  /** Fetches game config to check market and lock status */
   const fetchGameConfig = async () => {
     try {
       const res = await fetch('/api/config');
@@ -166,9 +222,28 @@ export const Splash = () => {
         if (typeof data.eventActive === 'boolean') {
           setIsMarketOpen(data.eventActive);
         }
+        if (typeof data.eventLocked === 'boolean') {
+          setIsLocked(data.eventLocked);
+        }
+        if ('eventStartTime' in data) {
+          setEventStartTime(data.eventStartTime);
+        }
       }
     } catch (e) {
       console.error('[Splash] Config fetch failed:', e);
+    }
+  };
+
+  /** Checks if user is a moderator */
+  const checkModStatus = async () => {
+    try {
+      const res = await fetch('/api/mod/check');
+      if (res.ok) {
+        const data = await res.json();
+        setIsMod(data.isModerator === true);
+      }
+    } catch (e) {
+      console.error('[Splash] Mod check failed:', e);
     }
   };
 
@@ -211,6 +286,51 @@ export const Splash = () => {
     checkOverflow();
   }, [stonks, loading, checkOverflow]);
 
+  /** JS-driven scroll animation so click hitboxes stay aligned with visuals */
+  useEffect(() => {
+    if (!shouldAutoScroll || !marketCardsRef.current) return;
+
+    const container = marketCardsRef.current;
+    const inner = container.querySelector('.market-cards-inner') as HTMLElement;
+    if (!inner) return;
+
+    let rafId: number;
+    let paused = false;
+    let accum = 0;
+    const speed = 0.15; // pixels per frame (~9px/s at 60fps, matches old 15s animation)
+
+    const step = () => {
+      if (!paused) {
+        accum += speed;
+        if (accum >= 1) {
+          const px = Math.floor(accum);
+          accum -= px;
+          container.scrollTop += px;
+          // When scrolled past the first half (original cards), jump back seamlessly
+          const halfHeight = inner.scrollHeight / 2;
+          if (container.scrollTop >= halfHeight) {
+            container.scrollTop -= halfHeight;
+          }
+        }
+      }
+      rafId = requestAnimationFrame(step);
+    };
+
+    // Pause on hover
+    const onEnter = () => { paused = true; };
+    const onLeave = () => { paused = false; };
+    container.addEventListener('mouseenter', onEnter);
+    container.addEventListener('mouseleave', onLeave);
+
+    rafId = requestAnimationFrame(step);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      container.removeEventListener('mouseenter', onEnter);
+      container.removeEventListener('mouseleave', onLeave);
+    };
+  }, [shouldAutoScroll]);
+
   const netWorth = portfolio ? (portfolio.walletBalance + portfolio.totalValue) / 100 : 0;
 
   return (
@@ -247,13 +367,27 @@ export const Splash = () => {
               alt="Stonks"
               className="stonks-guy-image"
             />
-            {/* CTA Button overlapping on the mascot */}
-            <button
-              className="splash-cta"
-              onClick={(e) => requestExpandedMode(e.nativeEvent, 'game')}
-            >
-              Start Trading
-            </button>
+
+            {/* CTA Area - Shows countdown/coming soon for non-mods, button for mods or when unlocked */}
+            {isLocked && !isMod ? (
+              <div className="splash-locked-area">
+                {countdown ? (
+                  <>
+                    <div className="countdown-label">Event starts in</div>
+                    <div className="countdown-timer">{countdown}</div>
+                  </>
+                ) : (
+                  <div className="coming-soon">Cooking Stonks</div>
+                )}
+              </div>
+            ) : (
+              <button
+                className="splash-cta"
+                onClick={(e) => requestExpandedMode(e.nativeEvent, 'game')}
+              >
+                Start Trading
+              </button>
+            )}
           </div>
 
           {context.username && (
@@ -309,7 +443,14 @@ export const Splash = () => {
               ))}
               {/* Duplicate cards for seamless loop */}
               {shouldAutoScroll && !loading && stonks.map((stonk) => (
-                <div key={`${stonk.ticker}-dup`} className="market-card">
+                <div
+                  key={`${stonk.ticker}-dup`}
+                  className="market-card cursor-pointer hover:border-[#FF4500] hover:scale-[1.02] transition-all"
+                  onClick={(e) => {
+                    localStorage.setItem('openStonkId', stonk.id);
+                    requestExpandedMode(e.nativeEvent, 'game');
+                  }}
+                >
                   <div className="card-left">
                     {stonk.imageUrl ? (
                       <img src={stonk.imageUrl} alt={stonk.ticker} className="stonk-logo" />

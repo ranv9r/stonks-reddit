@@ -21,14 +21,45 @@ const router = Router();
  */
 router.post('/internal/scheduler/price-tick', async (_req, res) => {
     try {
-        // Check if market is active
+        // Check game config
         const config = await redisService.getGameConfig();
-        if (!config.eventActive) {
+
+        // Check for scheduled event auto-start
+        if (config.eventStartTime && Date.now() >= config.eventStartTime && !config.eventActive) {
+            console.log('[Scheduler] ⏰ Scheduled event time reached! Auto-starting...');
+
+            // Auto-start event
+            await redisService.setGameConfig({
+                eventActive: true,
+                eventLocked: false,
+                eventStartTime: null // Clear the timer
+            });
+
+            // Broadcast to all clients - they should immediately unlock
+            await realtime.send('market_status', {
+                eventActive: true,
+                eventLocked: false,
+                eventStartTime: null
+            });
+
+            console.log('[Scheduler] 🏁 Event auto-started!');
+            // Continue to run the price tick
+        }
+
+        // Check if market is active
+        if (!config.eventActive && !(config.eventStartTime && Date.now() >= config.eventStartTime)) {
             res.status(200).json({ status: 'skipped', reason: 'market paused' });
             return;
         }
 
         console.log(`[Price Tick] Starting at ${new Date().toISOString()}`);
+
+        // Capture pre-batch prices for computing priceChangePercent
+        const preBatchStonks = await redisService.getAllStonks();
+        const preBatchPrices = new Map<string, number>();
+        for (const s of preBatchStonks) {
+            preBatchPrices.set(s.id, s.currentPrice);
+        }
 
         // CRITICAL: Flush accumulated volumes to Redis BEFORE resolving batches
         // This ensures trades from this tick are included in the current batch resolution
@@ -62,13 +93,19 @@ router.post('/internal/scheduler/price-tick', async (_req, res) => {
         // Broadcast updated market data to all clients
         const stonks = await redisService.getAllStonks();
         const payload = {
-            stonks: stonks.map(s => ({
-                id: s.id,
-                ticker: s.ticker,
-                icon: s.icon,
-                currentPrice: s.currentPrice,
-                priceChangePercent: 0, // Will be calculated on client if needed
-            })),
+            stonks: stonks.map(s => {
+                const prevPrice = preBatchPrices.get(s.id) || s.basePrice;
+                const priceChangePercent = prevPrice > 0
+                    ? ((s.currentPrice - prevPrice) / prevPrice) * 100
+                    : 0;
+                return {
+                    id: s.id,
+                    ticker: s.ticker,
+                    icon: s.icon,
+                    currentPrice: s.currentPrice,
+                    priceChangePercent,
+                };
+            }),
             timestamp: Date.now(),
         };
         await realtime.send('global_ticker', payload);

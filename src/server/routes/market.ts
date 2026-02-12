@@ -22,7 +22,7 @@ import * as stockTickerService from '../services/stockTickerService';
 const router = Router();
 
 /**
- * GET /api/market - Get all stonks and user wallet balance.
+ * GET /api/config - Get game configuration for clients.
  */
 router.get('/api/config', async (_req, res) => {
     try {
@@ -30,7 +30,9 @@ router.get('/api/config', async (_req, res) => {
         const config = await redisService.getGameConfig();
         res.json({
             subredditName: subredditName || 'Stonks',
-            eventActive: config.eventActive
+            eventActive: config.eventActive,
+            eventLocked: config.eventLocked,
+            eventStartTime: config.eventStartTime
         });
     } catch (error) {
         console.error('[Config API] Error:', error);
@@ -42,8 +44,8 @@ router.get('/api/market', async (_req, res) => {
     try {
         const { userId } = context;
 
-        // Get all stonks
-        const stonks = await redisService.getAllStonks();
+        // Get all stonks from in-memory cache (0 Redis calls, refreshed every tick)
+        const stonks = await redisService.getAllStonksFromCache();
 
         // Get user data
         const user = userId

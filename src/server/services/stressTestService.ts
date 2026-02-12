@@ -10,9 +10,7 @@
  */
 
 import { redis } from '@devvit/web/server';
-import { executeBuy, executeSell } from './tradingEngine';
-import { getAllStonks } from './redis';
-import { STARTING_BALANCE } from '../../shared/config';
+import { getAllStonks, addBuyVolume, addSellVolume } from './redis';
 
 const STRESS_KEY = 'stress:config';
 const METRICS_KEY = 'stress:metrics';
@@ -122,7 +120,8 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
- * Executes a single trade and returns timing info.
+ * Executes a single trade by injecting volume directly into Redis batch.
+ * Bypasses all portfolio/user checks — pure AMM pressure simulation.
  */
 async function executeSingleTrade(
     stonks: { id: string; currentPrice: number }[],
@@ -130,7 +129,6 @@ async function executeSingleTrade(
     buyRatio: number
 ): Promise<{ success: boolean; isBuy: boolean; amount: number; latencyMs: number }> {
     const startTime = Date.now();
-    const botId = `bot-${Math.floor(Math.random() * 10000)}`;
     const stonk = stonks[Math.floor(Math.random() * stonks.length)];
 
     // Safety check for empty stonks array
@@ -142,10 +140,12 @@ async function executeSingleTrade(
 
     try {
         if (isBuy) {
-            await executeBuy(botId, stonk.id, config.amountPerTrade, STARTING_BALANCE);
+            // Inject buy volume directly into batch (no user/portfolio overhead)
+            await addBuyVolume(stonk.id, config.amountPerTrade);
         } else {
+            // Inject sell volume directly into batch
             const shares = config.amountPerTrade / stonk.currentPrice;
-            await executeSell(botId, stonk.id, shares, STARTING_BALANCE);
+            await addSellVolume(stonk.id, shares);
         }
         return {
             success: true,

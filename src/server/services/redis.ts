@@ -92,6 +92,19 @@ export function getStonkFromCache(stonkId: string): StonkState | null {
 }
 
 /**
+ * Gets all stonks from the in-memory cache (0 Redis calls).
+ * Falls back to Redis if cache is empty (before first tick).
+ */
+export async function getAllStonksFromCache(): Promise<StonkState[]> {
+    if (stonkCache.size > 0) {
+        return Array.from(stonkCache.values()).filter(s => s.active);
+    }
+    // Cache empty (first load before scheduler runs) — populate from Redis
+    await refreshStonkCache();
+    return Array.from(stonkCache.values()).filter(s => s.active);
+}
+
+/**
  * Flushes all pending buy/sell volumes to Redis.
  * NOTE: Regular trades now write directly to Redis via addBuyVolume/addSellVolume.
  * This function is kept for stress test bots which may still use in-memory accumulators.
@@ -378,7 +391,6 @@ export async function deleteStonk(stonkId: string): Promise<boolean> {
  */
 export async function addBuyVolume(stonkId: string, amount: number): Promise<void> {
     await redis.hIncrBy(REDIS_KEYS.stonkBatch(stonkId), 'buyVolume', amount);
-    console.log(`[DEBUG] addBuyVolume: ${stonkId} += $${amount / 100} (written to Redis)`);
 }
 
 /**
@@ -388,7 +400,6 @@ export async function addBuyVolume(stonkId: string, amount: number): Promise<voi
 export async function addSellVolume(stonkId: string, shares: number): Promise<void> {
     const scaledShares = Math.round(shares * 10000);
     await redis.hIncrBy(REDIS_KEYS.stonkBatch(stonkId), 'sellVolume', scaledShares);
-    console.log(`[DEBUG] addSellVolume: ${stonkId} += ${shares} shares (written to Redis)`);
 }
 
 /**
@@ -427,13 +438,12 @@ export async function getAndResetBatch(
         const sellVolume = parseInt(batch?.sellVolume || '0') / 10000;
 
         if (buyVolume > 0 || sellVolume > 0) {
-            console.log(`[DEBUG] getAndResetBatch ${stonkId}: buyVol=$${buyVolume / 100}, sellVol=${sellVolume}sh`);
+            // Batch has volume - will be processed
         }
 
         return { buyVolume, sellVolume };
     } catch (e) {
         // If rename fails (key doesn't exist aka no volume), ensure key exists and return 0
-        console.log(`[DEBUG] getAndResetBatch ${stonkId}: no batch (rename failed)`);
         await redis.hSet(key, {
             buyVolume: '0',
             sellVolume: '0',
@@ -801,11 +811,15 @@ export async function getTopLeaderboard(limit: number): Promise<{ userId: string
 }
 
 /**
- * Gets a user's rank on the leaderboard.
+ * Gets a user's rank on the leaderboard (descending, highest score = rank 0).
+ * zRank returns ascending order (lowest=0), so we invert it.
  */
 export async function getUserRank(userId: string): Promise<number | null> {
-    const rank = await redis.zRank(REDIS_KEYS.LEADERBOARD, userId);
-    return rank !== undefined ? rank : null;
+    const ascRank = await redis.zRank(REDIS_KEYS.LEADERBOARD, userId);
+    if (ascRank === undefined) return null;
+    const total = await redis.zCard(REDIS_KEYS.LEADERBOARD);
+    // Convert ascending to descending: highest score gets rank 0
+    return total - 1 - ascRank;
 }
 
 /**
@@ -827,6 +841,7 @@ export async function getGameConfig(): Promise<GameConfig> {
 
     return {
         eventActive: data?.eventActive === 'true',
+        eventLocked: data?.eventLocked !== 'false', // Default to locked if not set
         eventStartTime: data?.eventStartTime ? parseInt(data.eventStartTime) : null,
         tickInterval: parseInt(data?.tickInterval || '5000'),
         startingBalance: parseInt(data?.startingBalance || '1000000'),
@@ -843,8 +858,11 @@ export async function setGameConfig(config: Partial<GameConfig>): Promise<void> 
     if (config.eventActive !== undefined) {
         updates.eventActive = String(config.eventActive);
     }
+    if (config.eventLocked !== undefined) {
+        updates.eventLocked = String(config.eventLocked);
+    }
     if (config.eventStartTime !== undefined) {
-        updates.eventStartTime = String(config.eventStartTime);
+        updates.eventStartTime = config.eventStartTime === null ? '' : String(config.eventStartTime);
     }
     if (config.tickInterval !== undefined) {
         updates.tickInterval = String(config.tickInterval);

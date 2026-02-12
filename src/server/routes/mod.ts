@@ -8,6 +8,7 @@ import { context, reddit, realtime } from '@devvit/web/server';
 import { STARTING_BALANCE, DEFAULT_BASE_PRICE, DEFAULT_X_VIRT } from '../../shared/config';
 import * as redisService from '../services/redis';
 import * as stressTestService from '../services/stressTestService';
+import * as leaderboardService from '../services/leaderboardService';
 import { createPost } from '../core/post';
 
 const router = Router();
@@ -369,21 +370,27 @@ router.post('/api/mod/reset-game', async (_req, res) => {
 
 /**
  * POST /internal/menu/start-event - Start a trading event.
+ * Unlocks the app for all users and starts trading immediately.
  */
 router.post('/internal/menu/start-event', async (_req, res) => {
     try {
         const { userId } = context;
 
-        // Initialize game config
+        // Start event: unlock app, enable trading, clear any scheduled timer
         await redisService.setGameConfig({
             eventActive: true,
+            eventLocked: false,
+            eventStartTime: null, // Clear scheduled timer
             tickInterval: 5000,
             startingBalance: STARTING_BALANCE,
-            eventStartTime: Date.now(),
         });
 
-        // Broadcast market status
-        await realtime.send('market_status', { eventActive: true });
+        // Broadcast to all clients - they should immediately unlock
+        await realtime.send('market_status', {
+            eventActive: true,
+            eventLocked: false,
+            eventStartTime: null
+        });
 
         console.log(`[Start Event] 🏁 Event started by ${userId}`);
         res.json({ showToast: { text: '🏁 Trading Event Started!' } });
@@ -395,18 +402,111 @@ router.post('/internal/menu/start-event', async (_req, res) => {
 
 /**
  * POST /internal/menu/stop-event - Pause trading event.
+ * Keeps app unlocked but disables trading.
  */
 router.post('/internal/menu/stop-event', async (_req, res) => {
     try {
+        // Pause trading but keep app accessible
         await redisService.setGameConfig({ eventActive: false });
 
-        // Broadcast market status
+        // Broadcast market status (eventLocked stays false - users can still view)
         await realtime.send('market_status', { eventActive: false });
 
-        console.log('[Stop Event] 🛑 Event paused by moderator');
+        // Run final leaderboard update so users see latest standings
+        console.log('[Stop Event] 🏆 Running final leaderboard update...');
+        await leaderboardService.updateLeaderboard();
+
+        // Broadcast leaderboard update to all clients
+        await realtime.send('leaderboard_update', { timestamp: Date.now() });
+
+        console.log('[Stop Event] 🛑 Event paused by moderator (leaderboard updated)');
         res.json({ showToast: { text: '🛑 Trading Paused' } });
     } catch (error) {
         console.error('[Stop Event] ❌ Error:', error);
+        res.status(500).json({});
+    }
+});
+
+/**
+ * POST /internal/menu/schedule-event - Show schedule event timer form.
+ * Only enabled when event is paused/locked.
+ */
+router.post('/internal/menu/schedule-event', async (_req, res) => {
+    try {
+        const config = await redisService.getGameConfig();
+
+        // Only allow scheduling when event is not active
+        if (config.eventActive) {
+            res.json({ showToast: { text: '⚠️ Event is already active. Stop it first to schedule.' } });
+            return;
+        }
+
+        res.json({
+            showForm: {
+                name: 'scheduleEventForm',
+                form: {
+                    title: '⏰ Schedule Event Start',
+                    fields: [
+                        {
+                            type: 'number',
+                            name: 'hours',
+                            label: 'Hours',
+                            defaultValue: 0,
+                            helpText: 'Hours until event starts (0-24)'
+                        },
+                        {
+                            type: 'number',
+                            name: 'minutes',
+                            label: 'Minutes',
+                            defaultValue: 5,
+                            helpText: 'Minutes until event starts (0-59)'
+                        }
+                    ]
+                }
+            }
+        });
+    } catch (error) {
+        console.error('[Schedule Event] ❌ Error:', error);
+        res.status(500).json({});
+    }
+});
+
+/**
+ * POST /internal/forms/schedule-event - Handle schedule event form submission.
+ */
+router.post('/internal/forms/schedule-event', async (req, res) => {
+    try {
+        const values = req.body.values || req.body;
+        const hours = Math.max(Math.min(Number(values.hours) || 0, 24), 0);
+        const minutes = Math.max(Math.min(Number(values.minutes) || 5, 59), 0);
+        const totalMinutes = (hours * 60) + minutes;
+
+        if (totalMinutes <= 0) {
+            res.json({ showToast: { text: '⚠️ Please set a time greater than 0!' } });
+            return;
+        }
+
+        const startTime = Date.now() + (totalMinutes * 60 * 1000);
+
+        // Set scheduled start time (keep locked, keep paused)
+        await redisService.setGameConfig({
+            eventStartTime: startTime,
+            eventLocked: true,
+            eventActive: false
+        });
+
+        // Broadcast to clients so they show countdown
+        await realtime.send('market_status', {
+            eventActive: false,
+            eventLocked: true,
+            eventStartTime: startTime
+        });
+
+        const timeStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes} minutes`;
+        console.log(`[Schedule Event] ⏰ Event scheduled to start in ${timeStr}`);
+        res.json({ showToast: { text: `⏰ Event scheduled to start in ${timeStr}!` } });
+    } catch (error) {
+        console.error('[Schedule Event] ❌ Error:', error);
         res.status(500).json({});
     }
 });
@@ -447,63 +547,52 @@ router.post('/internal/menu/reset-game', async (_req, res) => {
 
         console.log(`[Reset] ✅ Full reset! ${allUserIds.length} users, ${stonks.length} stocks at $100.`);
 
-        // AUTO-PAUSE MARKET ON RESET
-        await redisService.setGameConfig({ eventActive: false });
-        console.log('[Reset] Market auto-paused.');
+        // LOCK APP AND PAUSE MARKET ON RESET
+        await redisService.setGameConfig({
+            eventActive: false,
+            eventLocked: true,
+            eventStartTime: null
+        });
 
-        res.json({});
+        // Broadcast locked status to all clients
+        await realtime.send('market_status', {
+            eventActive: false,
+            eventLocked: true,
+            eventStartTime: null
+        });
+
+        console.log('[Reset] 🔒 App locked and market paused.');
+
+        res.json({ showToast: { text: '🔄 Game Reset! App is now locked.' } });
     } catch (error) {
         console.error('[Reset] ❌ Error:', error);
-        res.status(500).json({});
+        res.status(500).json({ showToast: { text: '❌ Reset failed!' } });
     }
 });
 
 /**
  * POST /internal/triggers/on-app-install - Handle app installation.
+ * App starts LOCKED - mod must explicitly start the event.
  */
 router.post('/internal/triggers/on-app-install', async (_req, res) => {
     try {
         console.log(`[Install] App installed in subreddit ${context.subredditName}`);
 
-        // Initialize game config
+        // Initialize game config - LOCKED by default, mod must start event
         await redisService.setGameConfig({
-            eventActive: true, // Start active so users can trade immediately
+            eventActive: false,
+            eventLocked: true, // Users can't access until mod starts
             tickInterval: 5000,
             startingBalance: STARTING_BALANCE,
-            eventStartTime: Date.now(),
+            eventStartTime: null,
         });
 
-        // Seed test stocks (IPL Teams)
-        const testStocks = [
-            { id: 'CSK', name: 'Chennai Super Kings', ticker: 'CSK', icon: '🦁' },
-            { id: 'MI', name: 'Mumbai Indians', ticker: 'MI', icon: '🔵' },
-            { id: 'RCB', name: 'Royal Challengers', ticker: 'RCB', icon: '🔴' },
-            { id: 'KKR', name: 'Knight Riders', ticker: 'KKR', icon: '💜' },
-            { id: 'DC', name: 'Delhi Capitals', ticker: 'DC', icon: '🦅' },
-        ];
-
-        for (const stock of testStocks) {
-            const existing = await redisService.getStonk(stock.id);
-            if (!existing) {
-                await redisService.createStonk(
-                    stock.id,
-                    stock.name,
-                    stock.ticker,
-                    stock.icon,
-                    DEFAULT_X_VIRT,      // xVirt: $1M virtual cash
-                    DEFAULT_X_VIRT / DEFAULT_BASE_PRICE, // yVirt for $100 price
-                    'system'
-                );
-                console.log(`[Install] Created test stock: ${stock.ticker}`);
-            }
-        }
-
-        // Create initial post
+        // Create initial post (no stocks seeded - mods add them via admin panel)
         const post = await createPost();
 
         res.json({
             status: 'success',
-            message: `App installed. Post created with id ${post.id}. 5 test stocks created.`,
+            message: `App installed. Post created with id ${post.id}. Add stocks via admin panel.`,
         });
     } catch (error) {
         console.error('[Install] Error:', error);

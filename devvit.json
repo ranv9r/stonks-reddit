@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "pump-o-dump",
+  "name": "stonk-street",
   "post": {
     "dir": "dist/client",
     "entrypoints": {
@@ -77,6 +77,13 @@
         "endpoint": "/internal/menu/stop-event"
       },
       {
+        "label": "⏰ Schedule Event Start",
+        "description": "Set a timer for when trading begins",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/schedule-event"
+      },
+      {
         "label": "⚡ Start Stress Test",
         "description": "Simulate 100 bots trading for 5 mins",
         "location": "subreddit",
@@ -93,12 +100,13 @@
     ]
   },
   "forms": {
-    "stressTestForm": "/internal/forms/stress-test"
+    "stressTestForm": "/internal/forms/stress-test",
+    "scheduleEventForm": "/internal/forms/schedule-event"
   },
   "triggers": {
     "onAppInstall": "/internal/triggers/on-app-install"
   },
   "dev": {
-    "subreddit": "pump_o_dump_dev2"
+    "subreddit": "stonk_street_dev"
   }
 }
