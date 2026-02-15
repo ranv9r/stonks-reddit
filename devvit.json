@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "pump-o-dump2",
+  "name": "stonk-street",
   "post": {
     "dir": "dist/client",
     "entrypoints": {
@@ -57,7 +57,7 @@
       },
       "chat-deletion-sync": {
         "endpoint": "/internal/scheduler/chat-deletion-sync",
-        "cron": "*/1 * * * *"
+        "cron": "*/5 * * * * *"
       }
     }
   },
@@ -115,6 +115,6 @@
     "onAppInstall": "/internal/triggers/on-app-install"
   },
   "dev": {
-    "subreddit": "pump_o_dump2_dev"
+    "subreddit": "stonk_street_dev"
   }
 }

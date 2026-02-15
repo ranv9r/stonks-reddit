@@ -13,16 +13,25 @@ import { redis, reddit, realtime } from '@devvit/web/server';
 const getThreadCommentsKey = (threadId: string) => `chat:thread_comments:${threadId}`;
 
 /**
+ * Ensures comment ID has the proper t1_ prefix
+ */
+const ensureCommentPrefix = (id: string): `t1_${string}` => {
+    return id.startsWith('t1_') ? id as `t1_${string}` : `t1_${id}`;
+};
+
+/**
  * Syncs comments for a specific thread and broadcasts any deletions
  */
 async function syncThreadDeletions(threadId: string): Promise<void> {
     try {
         const commentsKey = getThreadCommentsKey(threadId);
-        
+
         // Get previously seen comment IDs (stored as JSON array)
         const previousJson = await redis.get(commentsKey);
-        const previousCommentIds: string[] = previousJson ? JSON.parse(previousJson) : [];
-        
+        const previousCommentIds: `t1_${string}`[] = previousJson
+            ? (JSON.parse(previousJson) as string[]).map(ensureCommentPrefix)
+            : [];
+
         // Fetch current comments from Reddit
         const commentsListing = await reddit.getComments({
             postId: threadId as `t3_${string}`,
@@ -31,7 +40,23 @@ async function syncThreadDeletions(threadId: string): Promise<void> {
         });
 
         const currentComments = await commentsListing.all();
-        const currentCommentIds = currentComments.map(c => `t1_${c.id}`);
+
+        // Filter out deleted, removed, or spam comments
+        // These should be treated as if they don't exist
+        const validComments = currentComments.filter(c => {
+            // Check if removed by mod or marked as spam
+            if (c.removed || c.spam) return false;
+
+            // Check if user-deleted (authorName becomes '[deleted]')
+            if (c.authorName === '[deleted]') return false;
+
+            // Check if body indicates deletion/removal
+            if (c.body === '[deleted]' || c.body === '[removed]') return false;
+
+            return true;
+        });
+
+        const currentCommentIds = validComments.map(c => ensureCommentPrefix(c.id));
 
         // Detect deletions: comments that were there before but aren't now
         const currentSet = new Set(currentCommentIds);
@@ -39,12 +64,12 @@ async function syncThreadDeletions(threadId: string): Promise<void> {
 
         if (deletedCommentIds.length > 0) {
             console.log(`[DeletionSync] Found ${deletedCommentIds.length} deleted comments in thread ${threadId}`);
-            
+
             // Broadcast each deletion
             for (const commentId of deletedCommentIds) {
-                await realtime.send('chat_delete', { 
-                    commentId: commentId as string,
-                    threadId 
+                await realtime.send('chat_delete', {
+                    commentId,
+                    threadId
                 });
             }
         }
@@ -70,7 +95,7 @@ export async function syncAllThreadDeletions(): Promise<void> {
         // We'll use the stonks list from Redis
         const stonksListKey = 'stonks:list';
         const stonkIds = await redis.zRange(stonksListKey, 0, -1);
-        
+
         if (!stonkIds || stonkIds.length === 0) {
             console.log('[DeletionSync] No stocks found');
             return;
@@ -110,14 +135,15 @@ export async function syncAllThreadDeletions(): Promise<void> {
  */
 export async function registerComment(threadId: string, commentId: string): Promise<void> {
     const commentsKey = getThreadCommentsKey(threadId);
-    
+
     // Get existing IDs
     const existingJson = await redis.get(commentsKey);
     const existingIds: string[] = existingJson ? JSON.parse(existingJson) : [];
-    
-    // Add new ID if not already present
-    if (!existingIds.includes(commentId)) {
-        existingIds.push(commentId);
+
+    // Add new ID if not already present (ensure it has t1_ prefix)
+    const prefixedCommentId = ensureCommentPrefix(commentId);
+    if (!existingIds.includes(prefixedCommentId)) {
+        existingIds.push(prefixedCommentId);
         await redis.set(commentsKey, JSON.stringify(existingIds));
     }
 }
