@@ -23,10 +23,10 @@
     "type-check": "tsc --build"
   },
   "dependencies": {
-    "@devvit/web": "0.12.9",
+    "@devvit/web": "0.12.8",
     "canvas-confetti": "^1.9.4",
     "clsx": "2.1.1",
-    "devvit": "0.12.10",
+    "devvit": "0.12.8",
     "express": "5.1.0",
     "lts": "^2.0.0",
     "react": "19.1.0",
