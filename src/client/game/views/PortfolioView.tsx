@@ -151,7 +151,7 @@ export const PortfolioView = ({ onStonkClick, isMarketOpen = true }: PortfolioVi
     const totalNetWorth = portfolio.walletBalance + portfolio.totalValue;
 
     return (
-        <div className="pb-24">
+        <div className="pb-24 max-w-3xl mx-auto">
             {/* Market Status Banner */}
             {!isMarketOpen && (
                 <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2 flex items-center justify-center gap-2 mb-4">

@@ -297,7 +297,7 @@ export const Splash = () => {
     let rafId: number;
     let paused = false;
     let accum = 0;
-    const speed = 0.15; // pixels per frame (~9px/s at 60fps, matches old 15s animation)
+    const speed = 0.5; // pixels per frame (~9px/s at 60fps, matches old 15s animation)
 
     const step = () => {
       if (!paused) {
@@ -319,8 +319,14 @@ export const Splash = () => {
     // Pause on hover
     const onEnter = () => { paused = true; };
     const onLeave = () => { paused = false; };
+    const onTouchStart = () => { paused = true; };
+    const onTouchEnd = () => { paused = false; };
+
     container.addEventListener('mouseenter', onEnter);
     container.addEventListener('mouseleave', onLeave);
+    container.addEventListener('touchstart', onTouchStart);
+    container.addEventListener('touchend', onTouchEnd);
+    container.addEventListener('touchcancel', onTouchEnd);
 
     rafId = requestAnimationFrame(step);
 
@@ -328,6 +334,9 @@ export const Splash = () => {
       cancelAnimationFrame(rafId);
       container.removeEventListener('mouseenter', onEnter);
       container.removeEventListener('mouseleave', onLeave);
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
     };
   }, [shouldAutoScroll]);
 

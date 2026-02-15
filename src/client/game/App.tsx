@@ -75,12 +75,28 @@ export const App = () => {
 
   /** Check if redirected from splash with a specific stonk to open */
   useEffect(() => {
-    const stonkId = localStorage.getItem('openStonkId');
-    if (stonkId) {
-      localStorage.removeItem('openStonkId'); // Clear it immediately
-      setSelectedStonkId(stonkId);
-      setCurrentView('detail');
-    }
+    const checkDeepLink = () => {
+      const stonkId = localStorage.getItem('openStonkId');
+      if (stonkId) {
+        console.log('[App] Found openStonkId:', stonkId);
+        localStorage.removeItem('openStonkId'); // Clear it immediately
+        setSelectedStonkId(stonkId);
+        setCurrentView('detail');
+      }
+    };
+
+    // Check on mount
+    checkDeepLink();
+
+    // Also check on visibility change (in case app was already loaded/backgrounded)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkDeepLink();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, []);
 
   // Check if user is a moderator on mount

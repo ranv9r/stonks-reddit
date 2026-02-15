@@ -429,11 +429,7 @@ const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPosit
                                 Buy Limit Remaining: <span className="text-gray-300 font-mono">${(spendLimit.remaining / 100).toFixed(2)}</span>
                             </div>
                         )}
-                        {action === 'sell' && (
-                            <div className="mt-2 text-xs text-center text-gray-500">
-                                Sell Limit: <span className="text-[#00D084] font-bold">UNLIMITED</span>
-                            </div>
-                        )}
+
                     </div>
 
                     {/* Total Cost / Value */}
@@ -479,6 +475,15 @@ export const StockDetailView = ({ stonkId, onBack, isMarketOpen = true }: StockD
 
     // Realtime connection ref for cleanup
     const realtimeRef = useRef<{ disconnect: () => Promise<void> } | null>(null);
+
+    // Track screen size to conditionally render appropriate chat instance (prevent double-sub)
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 1024);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     // Use tiered data hook for price history
     const { currentData: priceHistory, selectedTier, setSelectedTier, loading: tierLoading, tierLabels } = useTierData(stonkId, currentPrice);
@@ -768,19 +773,23 @@ export const StockDetailView = ({ stonkId, onBack, isMarketOpen = true }: StockD
                         </button>
                     </div>
 
-                    {/* Mobile Chat (Bottom of Scroll) */}
-                    <div className="lg:hidden mt-4 pb-4 h-[400px]">
-                        <StockChat stonkId={stonkId} className="h-full" />
-                    </div>
+                    {/* Mobile Chat (Bottom of Scroll) - Only render on mobile */}
+                    {isMobile && (
+                        <div className="lg:hidden mt-4 pb-4 h-[400px]">
+                            <StockChat stonkId={stonkId} className="h-full" />
+                        </div>
+                    )}
                 </div>
 
 
             </div>
 
-            {/* Desktop Chat Sidebar */}
-            <div className="hidden lg:flex lg:w-[350px] xl:w-[400px] flex-col bg-[#111] border-l border-[#222]">
-                <StockChat stonkId={stonkId} className="h-full rounded-none border-0 bg-transparent" />
-            </div>
+            {/* Desktop Chat Sidebar - Only render on desktop */}
+            {!isMobile && (
+                <div className="hidden lg:flex lg:w-[350px] xl:w-[400px] flex-col bg-[#111] border-l border-[#222]">
+                    <StockChat stonkId={stonkId} className="h-full rounded-none border-0 bg-transparent" />
+                </div>
+            )}
 
             {/* Trade Modal */}
             <TradeModal
