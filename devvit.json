@@ -23,7 +23,11 @@
   "permissions": {
     "redis": true,
     "media": true,
-    "reddit": true
+    "reddit": {
+      "asUser": [
+        "SUBMIT_COMMENT"
+      ]
+    }
   },
   "scheduler": {
     "tasks": {
