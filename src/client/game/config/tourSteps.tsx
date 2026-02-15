@@ -161,7 +161,7 @@ export const tourSteps: Step[] = [
 
     // Step 9: Portfolio Tab Navigation
     {
-        target: '#tour-nav-portfolio',
+        target: '.tour-nav-portfolio',
         content: (
             <div>
                 <h4 style={{ marginTop: 0 }}>Portfolio Tab 📂</h4>
@@ -200,7 +200,7 @@ export const tourSteps: Step[] = [
 
     // Step 10: Leaderboard Navigation
     {
-        target: '#tour-nav-leaderboard',
+        target: '.tour-nav-leaderboard',
         content: (
             <div>
                 <h4 style={{ marginTop: 0 }}>Leaderboard 🏅</h4>

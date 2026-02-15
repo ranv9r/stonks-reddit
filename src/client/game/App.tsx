@@ -220,7 +220,7 @@ export const App = () => {
           </button>
           <button
             onClick={() => setCurrentView('portfolio')}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-200 ${currentView === 'portfolio'
+            className={`tour-nav-portfolio flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-200 ${currentView === 'portfolio'
               ? 'bg-[#FF4500] text-white shadow-lg'
               : 'text-[#a1a1aa] hover:bg-[#18181b] hover:text-white'
               }`}
@@ -231,7 +231,7 @@ export const App = () => {
           </button>
           <button
             onClick={() => setCurrentView('leaderboard')}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-200 ${currentView === 'leaderboard'
+            className={`tour-nav-leaderboard flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-200 ${currentView === 'leaderboard'
               ? 'bg-[#FF4500] text-white shadow-lg'
               : 'text-[#a1a1aa] hover:bg-[#18181b] hover:text-white'
               }`}
@@ -313,7 +313,7 @@ export const App = () => {
           <button
             id="tour-nav-portfolio"
             onClick={() => setCurrentView('portfolio')}
-            className={`relative flex-1 flex flex-col items-center gap-0.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'portfolio'
+            className={`tour-nav-portfolio relative flex-1 flex flex-col items-center gap-0.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'portfolio'
               ? 'text-[#FF4500]'
               : 'text-[#71717a] hover:text-[#a1a1aa]'
               }`}
@@ -329,7 +329,7 @@ export const App = () => {
           <button
             id="tour-nav-leaderboard"
             onClick={() => setCurrentView('leaderboard')}
-            className={`relative flex-1 flex flex-col items-center gap-0.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'leaderboard'
+            className={`tour-nav-leaderboard relative flex-1 flex flex-col items-center gap-0.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'leaderboard'
               ? 'text-[#FF4500]'
               : 'text-[#71717a] hover:text-[#a1a1aa]'
               }`}

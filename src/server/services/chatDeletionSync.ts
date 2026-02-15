@@ -68,7 +68,7 @@ async function syncThreadDeletions(threadId: string): Promise<void> {
             // Broadcast each deletion
             for (const commentId of deletedCommentIds) {
                 await realtime.send('chat_delete', {
-                    commentId,
+                    commentId: commentId.replace(/^t1_/, ''),
                     threadId
                 });
             }

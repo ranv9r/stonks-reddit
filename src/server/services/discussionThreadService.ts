@@ -51,7 +51,7 @@ export async function getOrCreateDiscussionThread(
     subredditName: string
 ): Promise<string> {
     const threadKey = getThreadKey(stonkId);
-    
+
     // Check cache first
     const cachedThreadId = await redis.get(threadKey);
     if (cachedThreadId) {
@@ -60,7 +60,7 @@ export async function getOrCreateDiscussionThread(
 
     // Create new discussion thread
     console.log(`[DiscussionThread] Creating new thread for ${ticker} in r/${subredditName}`);
-    
+
     const post = await reddit.submitPost({
         subredditName,
         title: `💬 $${ticker} Live Discussion`,
@@ -68,12 +68,12 @@ export async function getOrCreateDiscussionThread(
     });
 
     const threadId = post.id;
-    
+
     // Cache the thread ID (no expiration - threads are permanent)
     await redis.set(threadKey, threadId);
-    
+
     console.log(`[DiscussionThread] Created thread ${threadId} for ${ticker}`);
-    
+
     return threadId;
 }
 
@@ -99,7 +99,7 @@ export async function submitComment(
     if (!subredditName) {
         throw new Error('Subreddit name not available in context');
     }
-    
+
     const threadId = await getOrCreateDiscussionThread(stonkId, ticker, subredditName);
 
     const trimmedText = text.trim().slice(0, 280);
@@ -117,11 +117,11 @@ export async function submitComment(
     } catch (error) {
         // If USER mode fails (not approved yet), fall back to APP mode
         const errorMsg = error instanceof Error ? error.message : String(error);
-        
+
         if (errorMsg.includes('not approved to run as user') || errorMsg.includes('not allowed to run as user')) {
             console.log('[DiscussionThread] USER mode not available, falling back to APP mode');
             runAsMode = 'APP';
-            
+
             // Submit as APP instead
             comment = await reddit.submitComment({
                 id: threadId as `t3_${string}`,
@@ -159,7 +159,7 @@ export async function getComments(
 ): Promise<ChatMessage[]> {
     const threadKey = getThreadKey(stonkId);
     const threadId = await redis.get(threadKey);
-    
+
     // If no thread exists yet, return empty array
     if (!threadId) {
         return [];
@@ -175,8 +175,18 @@ export async function getComments(
 
         const comments = await commentsListing.all();
 
+        // Filter out removed/deleted/spam comments
+        // Since our app runs with mod permissions, getComments() returns
+        // full content of mod-removed comments — we must explicitly filter them
+        const visibleComments = comments.filter(c => {
+            if (c.removed || c.spam) return false;
+            if (c.authorName === '[deleted]') return false;
+            if (c.body === '[deleted]' || c.body === '[removed]') return false;
+            return true;
+        });
+
         // Transform Reddit comments to ChatMessage format
-        const chatMessages: ChatMessage[] = comments.map(comment => ({
+        const chatMessages: ChatMessage[] = visibleComments.map(comment => ({
             id: comment.id,
             userId: comment.authorId || 'unknown',
             username: comment.authorName || 'Unknown',

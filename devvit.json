@@ -57,7 +57,7 @@
       },
       "chat-deletion-sync": {
         "endpoint": "/internal/scheduler/chat-deletion-sync",
-        "cron": "*/5 * * * * *"
+        "cron": "*/20 * * * * *"
       }
     }
   },

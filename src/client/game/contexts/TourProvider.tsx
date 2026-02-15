@@ -3,7 +3,7 @@
  * Wraps the application to provide tour functionality across all components.
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import Joyride, { CallBackProps, STATUS, EVENTS, Step } from 'react-joyride';
 import { tourSteps } from '../config/tourSteps';
 import { ClaimBalanceModal } from '../components/ClaimBalanceModal';
@@ -202,6 +202,29 @@ export const TourProvider: React.FC<TourProviderProps> = ({ children }) => {
         completeTour,
     };
 
+    // Dynamically resolve tour targets for responsive nav buttons
+    // Desktop (>=1024px) uses top nav with class selectors, mobile uses bottom nav with ID selectors
+    const resolvedSteps = useMemo(() => {
+        const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
+        return tourSteps.map(step => {
+            if (step.target === '.tour-nav-portfolio') {
+                return {
+                    ...step,
+                    target: isDesktop ? '.tour-nav-portfolio' : '#tour-nav-portfolio',
+                    placement: isDesktop ? 'bottom' as const : 'top' as const,
+                };
+            }
+            if (step.target === '.tour-nav-leaderboard') {
+                return {
+                    ...step,
+                    target: isDesktop ? '.tour-nav-leaderboard' : '#tour-nav-leaderboard',
+                    placement: isDesktop ? 'bottom' as const : 'top' as const,
+                };
+            }
+            return step;
+        });
+    }, [isTourActive, currentStep]);
+
     // Don't render tour until we've checked status
     if (isLoading) {
         return <>{children}</>;
@@ -214,7 +237,7 @@ export const TourProvider: React.FC<TourProviderProps> = ({ children }) => {
             {/* Tour Component */}
             {!tourCompleted && (
                 <Joyride
-                    steps={tourSteps}
+                    steps={resolvedSteps}
                     run={isTourActive}
                     stepIndex={currentStep}
                     continuous
