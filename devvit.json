@@ -54,6 +54,10 @@
       "leaderboard-update": {
         "endpoint": "/internal/scheduler/leaderboard-update",
         "cron": "*/30 * * * *"
+      },
+      "chat-deletion-sync": {
+        "endpoint": "/internal/scheduler/chat-deletion-sync",
+        "cron": "*/1 * * * *"
       }
     }
   },

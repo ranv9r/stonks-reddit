@@ -45,6 +45,7 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
         // Set up realtime WebSocket for instant updates
         const setupRealtime = async () => {
             try {
+                // Listen for new messages
                 realtimeRef.current = await connectRealtime({
                     channel: 'chat',
                     onMessage: (data: unknown) => {
@@ -57,6 +58,18 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
                                 return [...prev, newMsg].sort((a, b) => a.time - b.time);
                             });
                         }
+                    },
+                });
+
+                // Listen for deletions (server checks every minute)
+                await connectRealtime({
+                    channel: 'chat_delete',
+                    onMessage: (data: unknown) => {
+                        const { commentId } = data as { commentId: string; threadId: string };
+
+                        // Remove deleted comment from state
+                        setMessages(prev => prev.filter(m => m.id !== commentId));
+                        console.log(`[Chat] Removed deleted comment: ${commentId}`);
                     },
                 });
             } catch (err) {

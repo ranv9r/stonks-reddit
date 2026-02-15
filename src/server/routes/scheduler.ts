@@ -262,5 +262,21 @@ router.post('/internal/scheduler/leaderboard-update', async (_req, res) => {
     }
 });
 
+/**
+ * Chat deletion sync job - runs every minute.
+ * Checks active discussion threads for deleted/removed comments.
+ */
+router.post('/internal/scheduler/chat-deletion-sync', async (_req, res) => {
+    try {
+        const chatDeletionSync = await import('../services/chatDeletionSync');
+        await chatDeletionSync.syncAllThreadDeletions();
+        res.status(200).json({ status: 'ok' });
+    } catch (error) {
+        console.error('[Chat Deletion Sync] Error:', error);
+        res.status(500).json({ status: 'error', message: String(error) });
+    }
+});
+
 export default router;
+
 

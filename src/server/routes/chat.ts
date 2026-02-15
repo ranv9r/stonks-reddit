@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { context, realtime } from '@devvit/web/server';
+import { context, realtime, redis } from '@devvit/web/server';
 import * as discussionThreadService from '../services/discussionThreadService';
 import * as redisService from '../services/redis';
 import type { ChatResponse } from '../../shared/types/stonks';
@@ -68,8 +68,18 @@ router.post('/api/chat', async (req, res) => {
             username
         );
 
+        // Get thread ID for deletion tracking
+        const threadKey = `stonk:${stonkId}:discussion_thread`;
+        const threadId = await redis.get(threadKey);
+
         // Broadcast to all clients for instant updates
         await realtime.send('chat', { ...message, stonkId });
+
+        // Register comment for deletion tracking (if thread ID exists)
+        if (threadId) {
+            const chatDeletionSync = await import('../services/chatDeletionSync');
+            await chatDeletionSync.registerComment(threadId, message.id);
+        }
 
         res.json(message);
     } catch (error) {
