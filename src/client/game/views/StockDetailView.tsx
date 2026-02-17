@@ -418,7 +418,7 @@ const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPosit
                         ) : (
                             <div className="text-center py-4 text-gray-500 text-sm">
                                 {action === 'buy'
-                                    ? (spendLimit && spendLimit.remaining <= 0 ? 'Monthly limit reached' : 'Insufficient balance')
+                                    ? (spendLimit && spendLimit.remaining <= 0 ? 'Buy Limit Reached, Try Again in 1 min' : 'Insufficient balance')
                                     : 'No shares to sell'}
                             </div>
                         )}
