@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { connectRealtime } from '@devvit/web/client';
+import { connectRealtime, navigateTo } from '@devvit/web/client';
+import { ChatConsentModal } from './ChatConsentModal';
 import type { ChatMessage, ChatResponse } from '../../../shared/types/stonks';
 
 interface StockChatProps {
@@ -13,12 +14,53 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
 
+    // Consent state
+    const [chatConsent, setChatConsent] = useState<boolean | null>(null); // null = loading
+    const [showConsentModal, setShowConsentModal] = useState(false);
+    const [declined, setDeclined] = useState(false);
+
+    // Thread URL for edit/delete link
+    const [threadUrl, setThreadUrl] = useState<string | null>(null);
+
     // Ref for chat container to manage scrolling manually
     const chatContainerRef = useRef<HTMLDivElement>(null);
     // Ref to track previous messages length for smart scrolling
     const prevMessagesLenRef = useRef(0);
     // Realtime connection ref
     const realtimeRef = useRef<{ disconnect: () => Promise<void> } | null>(null);
+
+    // Fetch consent status and thread URL on mount
+    useEffect(() => {
+        /** Fetches whether user has already accepted chat consent. */
+        const fetchConsent = async () => {
+            try {
+                const res = await fetch('/api/chat/consent');
+                if (res.ok) {
+                    const data = await res.json();
+                    setChatConsent(data.chatConsent === true);
+                }
+            } catch (err) {
+                console.error('[Chat] Failed to check consent:', err);
+                setChatConsent(false);
+            }
+        };
+
+        /** Fetches the discussion thread URL for the Edit/Delete link. */
+        const fetchThreadUrl = async () => {
+            try {
+                const res = await fetch(`/api/chat/${stonkId}/thread`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.url) setThreadUrl(data.url);
+                }
+            } catch {
+                // Thread may not exist yet, that's fine
+            }
+        };
+
+        fetchConsent();
+        fetchThreadUrl();
+    }, [stonkId]);
 
     // Initial fetch and realtime setup
     useEffect(() => {
@@ -27,7 +69,7 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
         setLoading(true);
         prevMessagesLenRef.current = 0;
 
-        // Fetch initial messages from Reddit
+        /** Fetches initial messages from Reddit discussion thread. */
         const fetchMessages = async () => {
             try {
                 const res = await fetch(`/api/chat/${stonkId}`);
@@ -42,7 +84,7 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
             }
         };
 
-        // Set up realtime WebSocket for instant updates
+        /** Sets up realtime WebSocket for instant message updates. */
         const setupRealtime = async () => {
             try {
                 // Listen for new messages
@@ -61,7 +103,7 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
                     },
                 });
 
-                // Listen for deletions (server checks every minute)
+                // Listen for deletions (server checks periodically)
                 await connectRealtime({
                     channel: 'chat_delete',
                     onMessage: (data: unknown) => {
@@ -97,16 +139,25 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
         const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
 
         if (isInitialLoad || isNearBottom) {
-            // Use scrollTop to avoid scrolling the entire page
             container.scrollTop = container.scrollHeight;
         }
 
         prevMessagesLenRef.current = messages.length;
     }, [messages]);
 
+    /** Handles send attempt — shows consent modal if not yet opted in. */
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newMessage.trim() || sending) return;
+
+        // If not consented (explicitly false, not loading), show modal instead of sending
+        if (chatConsent === false) {
+            setShowConsentModal(true);
+            return;
+        }
+
+        // Still loading consent status — wait, don't send yet
+        if (chatConsent === null) return;
 
         setSending(true);
         try {
@@ -137,6 +188,40 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
         }
     };
 
+    /** Handles consent acceptance — persists flag and allows sending. */
+    const handleConsentAccept = async () => {
+        try {
+            const res = await fetch('/api/chat/consent', { method: 'POST' });
+            if (res.ok) {
+                setChatConsent(true);
+                setShowConsentModal(false);
+                setDeclined(false);
+            }
+        } catch (err) {
+            console.error('[Chat] Failed to save consent:', err);
+        }
+    };
+
+    /** Handles consent decline — disables input, can re-show modal. */
+    const handleConsentDecline = () => {
+        setShowConsentModal(false);
+        setDeclined(true);
+    };
+
+    /** Re-show consent modal if user clicks disabled input after declining. */
+    const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+        if (declined || chatConsent === false) {
+            e.target.blur();
+            setShowConsentModal(true);
+            return;
+        }
+        // Scroll input into view when mobile keyboard opens
+        setTimeout(() => {
+            e.target.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }, 300);
+    };
+
+    /** Formats a Unix timestamp to a human-readable time string. */
     const formatTime = (ts: number) => {
         return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
@@ -149,9 +234,19 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
                     <h3 className="font-bold text-slate-200 text-sm uppercase tracking-wider">Live Chat</h3>
                     <p className="text-[10px] text-slate-400 mt-0.5">Posted as Reddit comments</p>
                 </div>
-                <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span className="text-xs text-slate-400">Live</span>
+                <div className="flex items-center gap-3">
+                    {threadUrl && (
+                        <button
+                            onClick={() => navigateTo(threadUrl)}
+                            className="text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors underline underline-offset-2 bg-transparent border-none cursor-pointer p-0"
+                        >
+                            Edit/Delete Comment
+                        </button>
+                    )}
+                    <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span className="text-xs text-slate-400">Live</span>
+                    </div>
                 </div>
             </div>
 
@@ -189,25 +284,26 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
 
             {/* Input Area */}
             <form onSubmit={handleSend} className="p-3 bg-slate-800/30 border-t border-slate-700/50">
+                {declined && (
+                    <p className="text-[10px] text-slate-500 mb-1.5 text-center">
+                        Chat is read-only. <button type="button" onClick={() => setShowConsentModal(true)} className="text-emerald-400 underline">Enable sending</button>
+                    </p>
+                )}
                 <div className="flex gap-2">
                     <input
                         type="text"
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
-                        onFocus={(e) => {
-                            // Scroll input into view when mobile keyboard opens
-                            setTimeout(() => {
-                                e.target.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                            }, 300); // Delay to wait for keyboard to open
-                        }}
-                        placeholder="Say something..."
-                        className="flex-1 bg-slate-950/50 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 transition-colors"
+                        onFocus={handleInputFocus}
+                        placeholder={declined ? 'Accept terms to chat...' : 'Say something...'}
+                        className={`flex-1 bg-slate-950/50 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 transition-colors ${declined ? 'opacity-50 cursor-not-allowed' : ''}`}
                         disabled={sending}
+                        readOnly={declined}
                         maxLength={280}
                     />
                     <button
                         type="submit"
-                        disabled={!newMessage.trim() || sending}
+                        disabled={!newMessage.trim() || sending || declined}
                         className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white p-2 rounded transition-colors"
                     >
                         {sending ? (
@@ -223,6 +319,14 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
                     </button>
                 </div>
             </form>
+
+            {/* Consent Modal */}
+            {showConsentModal && (
+                <ChatConsentModal
+                    onAccept={handleConsentAccept}
+                    onDecline={handleConsentDecline}
+                />
+            )}
         </div>
     );
 }

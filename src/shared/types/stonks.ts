@@ -84,6 +84,7 @@ export interface UserData {
     joinedAt: number;       // Unix timestamp
     lastTradeAt: number;    // Unix timestamp
     tourCompleted: boolean; // Whether user has completed the guided tour
+    chatConsent: boolean;   // Whether user has opted in to posting chat comments
 }
 
 /** Portfolio display for client */

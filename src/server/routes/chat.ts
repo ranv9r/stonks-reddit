@@ -12,7 +12,7 @@ const router = Router();
 router.get('/api/chat/:stonkId', async (req, res) => {
     try {
         const { stonkId } = req.params;
-        
+
         // Fetch comments from discussion thread (returns empty array if no thread exists yet)
         const messages = await discussionThreadService.getComments(stonkId);
 
@@ -43,6 +43,13 @@ router.post('/api/chat', async (req, res) => {
 
         if (!stonkId || !text) {
             res.status(400).json({ error: 'Missing stonkId or text' });
+            return;
+        }
+
+        // Enforce chat consent before allowing message posting
+        const user = await redisService.getOrCreateUser(userId, 1000000);
+        if (!user.chatConsent) {
+            res.status(403).json({ error: 'Chat consent required. Please accept the chat terms first.' });
             return;
         }
 
@@ -84,16 +91,42 @@ router.post('/api/chat', async (req, res) => {
         res.json(message);
     } catch (error) {
         console.error('[Chat API] Error posting comment:', error);
-        
+
         // Check for specific error messages
         const errorMessage = error instanceof Error ? error.message : 'Failed to post message';
-        
+
         if (errorMessage.includes('wait')) {
             // Cooldown error
             res.status(429).json({ error: errorMessage });
         } else {
             res.status(500).json({ error: errorMessage });
         }
+    }
+});
+/**
+ * GET /api/chat/:stonkId/thread - Get the discussion thread URL for a stock.
+ */
+router.get('/api/chat/:stonkId/thread', async (req, res) => {
+    try {
+        const { stonkId } = req.params;
+        const threadKey = `stonk:${stonkId}:discussion_thread`;
+        const threadId = await redis.get(threadKey);
+
+        if (!threadId) {
+            res.json({ url: null });
+            return;
+        }
+
+        // Build Reddit thread URL from context
+        const subredditName = context.subredditName;
+        if (subredditName) {
+            res.json({ url: `https://www.reddit.com/r/${subredditName}/comments/${threadId.replace('t3_', '')}` });
+        } else {
+            res.json({ url: null });
+        }
+    } catch (error) {
+        console.error('[Chat API] Error fetching thread URL:', error);
+        res.json({ url: null });
     }
 });
 

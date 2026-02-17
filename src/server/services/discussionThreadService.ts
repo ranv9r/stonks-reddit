@@ -64,7 +64,7 @@ export async function getOrCreateDiscussionThread(
     const post = await reddit.submitPost({
         subredditName,
         title: `💬 $${ticker} Live Discussion`,
-        text: `This is the live discussion thread for **$${ticker}**. All chat messages appear here as comments.\n\n_Comments are posted by users, not by the app._`,
+        text: `This is the live discussion thread for **$${ticker}**.\n\nComments in this thread are posted by the Stonks app on behalf of users through the in-app live chat. Each comment is attributed to the user who sent it.`,
     });
 
     const threadId = post.id;

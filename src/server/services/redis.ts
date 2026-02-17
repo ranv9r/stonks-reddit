@@ -697,6 +697,7 @@ export async function getOrCreateUser(userId: string, startingBalance: number): 
             joinedAt: parseInt(existing.joinedAt || '0'),
             lastTradeAt: parseInt(existing.lastTradeAt || '0'),
             tourCompleted: existing.tourCompleted === 'true',
+            chatConsent: existing.chatConsent === 'true',
         };
     }
 
@@ -708,6 +709,7 @@ export async function getOrCreateUser(userId: string, startingBalance: number): 
         joinedAt: now,
         lastTradeAt: 0,
         tourCompleted: false, // New users haven't completed tour
+        chatConsent: false,   // New users haven't opted in to chat
     };
 
     await redis.hSet(REDIS_KEYS.userData(userId), {
@@ -716,6 +718,7 @@ export async function getOrCreateUser(userId: string, startingBalance: number): 
         joinedAt: String(now),
         lastTradeAt: '0',
         tourCompleted: 'false',
+        chatConsent: 'false',
     });
 
     return userData;
@@ -734,6 +737,7 @@ export async function getUser(userId: string): Promise<UserData | null> {
         joinedAt: parseInt(data.joinedAt || '0'),
         lastTradeAt: parseInt(data.lastTradeAt || '0'),
         tourCompleted: data.tourCompleted === 'true',
+        chatConsent: data.chatConsent === 'true',
     };
 }
 
@@ -763,6 +767,7 @@ export async function resetUser(userId: string, startingBalance: number): Promis
         portfolio: '{}',
         lastTradeAt: '0',
         tourCompleted: 'false', // Reset tour completion on game reset
+        chatConsent: 'false',   // Reset chat consent on game reset
     });
 }
 
@@ -780,6 +785,15 @@ export async function getAllUserIds(): Promise<string[]> {
 export async function markTourCompleted(userId: string): Promise<void> {
     await redis.hSet(REDIS_KEYS.userData(userId), {
         tourCompleted: 'true',
+    });
+}
+
+/**
+ * Marks the user's chat consent as accepted.
+ */
+export async function markChatConsent(userId: string): Promise<void> {
+    await redis.hSet(REDIS_KEYS.userData(userId), {
+        chatConsent: 'true',
     });
 }
 

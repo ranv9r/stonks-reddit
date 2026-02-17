@@ -7,6 +7,7 @@ import modRoutes from './routes/mod';
 import schedulerRoutes from './routes/scheduler';
 import chatRoutes from './routes/chat';
 import tourRoutes from './routes/tour';
+import consentRoutes from './routes/consent';
 
 const app = express();
 
@@ -17,10 +18,11 @@ app.use(express.urlencoded({ extended: true }));
 // Middleware for plain text body parsing
 app.use(express.text());
 
-// Mount routes
+// Mount routes (consent before chat — /api/chat/consent must match before /api/chat/:stonkId)
 app.use(marketRoutes);
 app.use(modRoutes);
 app.use(schedulerRoutes);
+app.use(consentRoutes);
 app.use(chatRoutes);
 app.use(tourRoutes);
 
