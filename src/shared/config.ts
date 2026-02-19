@@ -78,7 +78,7 @@ export const LIQUIDITY_SCALE_THRESHOLD = 500000; // $5,000
  * Maximum amount a user can spend per stonk per cooldown window (in cents)
  * Applies to both BUY (cash spent) and SELL (value at current price)
  */
-export const USER_SPEND_LIMIT = 1000000; // $10,000 per stonk
+export const USER_SPEND_LIMIT = 2000000; // $20,000 per stonk
 
 /**
  * Cooldown window duration in milliseconds

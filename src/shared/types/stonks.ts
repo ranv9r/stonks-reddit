@@ -85,6 +85,8 @@ export interface UserData {
     lastTradeAt: number;    // Unix timestamp
     tourCompleted: boolean; // Whether user has completed the guided tour
     chatConsent: boolean;   // Whether user has opted in to posting chat comments
+    /** Per-stock buy spend tracking. Key = stonkId, value = { bucket: minute bucket, amount: cents spent } */
+    spendData: Record<string, { bucket: number; amount: number }>;
 }
 
 /** Portfolio display for client */
