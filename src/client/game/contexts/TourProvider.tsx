@@ -280,10 +280,7 @@ export const TourProvider: React.FC<TourProviderProps> = ({ children }) => {
                         buttonSkip: {
                             color: '#71717a',
                         },
-                        beacon: {
-                            inner: '#FF4500',
-                            outer: '#FF4500',
-                        },
+
                     }}
                     locale={{
                         back: 'Back',
