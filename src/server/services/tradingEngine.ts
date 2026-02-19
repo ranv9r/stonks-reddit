@@ -9,7 +9,7 @@
  */
 
 import { USER_SPEND_LIMIT } from '../../shared/config';
-import type { Portfolio, AMMState, BatchOrder, SpendLimitResult } from '../../shared/types/stonks';
+import type { Portfolio, AMMState, SpendLimitResult } from '../../shared/types/stonks';
 import * as redisService from './redis';
 import * as ammEngine from './ammEngine';
 
@@ -63,33 +63,40 @@ export async function executeBuy(
     amount: number, // Amount in coins (cents)
     startingBalance: number
 ): Promise<{ success: boolean; message: string; actualAmount?: number }> {
-    // Check cooldown limit first (uses in-memory cache, 0 Redis calls on cache hit)
-    const limitCheck = await redisService.checkSpendLimitCached(userId, stonkId, amount);
+
+    // 1. Get user first — spendData is embedded in the user hash, so this is 0 extra Redis calls
+    const user = await redisService.getOrCreateUser(userId, startingBalance);
+
+    // 2. Inline spend limit check using user.spendData (no separate Redis call needed)
+    const currentBucket = Math.floor(Date.now() / 60000); // Changes every 60 seconds
+    const stonkSpend = user.spendData?.[stonkId];
+    const spentThisBucket = (stonkSpend?.bucket === currentBucket) ? stonkSpend.amount : 0;
+    const remaining = USER_SPEND_LIMIT - spentThisBucket;
 
     let actualAmount = amount;
-    if (!limitCheck.allowed) {
-        if (limitCheck.cappedAmount && limitCheck.cappedAmount > 0) {
-            // Partial order - cap to remaining
-            actualAmount = limitCheck.cappedAmount;
-        } else {
-            // No remaining allowance
-            const remainingSeconds = 60; // Approximate, actual TTL unknown
-            return {
-                success: false,
-                message: `Cooldown active. You've spent $${(limitCheck.spent / 100).toFixed(2)} of $${(USER_SPEND_LIMIT / 100).toFixed(2)} on this stonk. Try again in ~${remainingSeconds}s.`,
-            };
-        }
+
+    if (remaining <= 0) {
+        // Fully blocked — calculate accurate seconds left in this minute window
+        const secsLeft = 60 - (Math.floor(Date.now() / 1000) % 60);
+        return {
+            success: false,
+            message: `Cooldown active. You've spent $${(spentThisBucket / 100).toFixed(2)} of $${(USER_SPEND_LIMIT / 100).toFixed(2)} on this stonk. Try again in ~${secsLeft}s.`,
+        };
     }
 
-    // 1. Get User & Stonk (stonk from cache for optimization)
-    const user = await redisService.getOrCreateUser(userId, startingBalance);
+    // Cap to remaining allowance if needed (partial order)
+    if (amount > remaining) {
+        actualAmount = remaining;
+    }
+
+    // 3. Get Stonk (from cache for optimization)
     const stonk = redisService.getStonkFromCache(stonkId) || await redisService.getStonk(stonkId);
 
     if (!stonk) return { success: false, message: 'Stonk not found.' };
     if (!stonk.active) return { success: false, message: 'Market closed for this stonk.' };
 
-    // 2. Balance Check (reuse limitCheck.remaining from earlier - no extra Redis call)
-    actualAmount = Math.min(actualAmount, user.walletBalance, limitCheck.remaining);
+    // 4. Balance check — cap to what user can actually afford
+    actualAmount = Math.min(actualAmount, user.walletBalance);
 
     if (actualAmount <= 0) {
         return { success: false, message: 'Insufficient funds or spend limit reached.' };
@@ -97,14 +104,14 @@ export async function executeBuy(
 
     // --- INSTANT EXECUTION (Fixed Price) ---
 
-    // 1. Calculate result using CURRENT price (No slippage for user)
+    // 5. Calculate result using CURRENT price (No slippage for user)
     const currentPrice = stonk.currentPrice;
     const stockDistributed = actualAmount / currentPrice;
 
-    // 2. Add to Batch (direct Redis write for reliability)
+    // 6. Add to Batch (direct Redis write for reliability)
     await redisService.addBuyVolume(stonk.id, actualAmount);
 
-    // 3. Build updated portfolio
+    // 7. Build updated portfolio
     const updatedPortfolio: Portfolio = { ...user.portfolio };
     const existingHolding = updatedPortfolio[stonkId];
 
@@ -125,14 +132,17 @@ export async function executeBuy(
         };
     }
 
-    // 4. Update wallet and portfolio (OPTIMIZED: single HSET with currentBalance)
-    await redisService.atomicUpdateUserTrade(userId, -actualAmount, updatedPortfolio, user.walletBalance);
+    // 8. Build updated spendData — update this bucket's spend for the stonk
+    const updatedSpendData = {
+        ...user.spendData,
+        [stonkId]: { bucket: currentBucket, amount: spentThisBucket + actualAmount },
+    };
 
-    // 5. Record spending for cooldown (local accumulator, 0 Redis calls!)
-    redisService.recordSpendingLocal(userId, stonkId, actualAmount);
+    // 9. Update wallet, portfolio, and spendData atomically in a single HSET (no extra Redis call)
+    await redisService.atomicUpdateUserTrade(userId, -actualAmount, updatedPortfolio, user.walletBalance, updatedSpendData);
 
     const message = actualAmount < amount
-        ? `Partial buy for $${(actualAmount / 100).toFixed(2)} (${stockDistributed.toFixed(4)} shares).`
+        ? `Partial buy for $${(actualAmount / 100).toFixed(2)} (${stockDistributed.toFixed(4)} shares). Spend limit reached.`
         : `Bought ${stockDistributed.toFixed(4)} shares for $${(actualAmount / 100).toFixed(2)}.`;
 
     return {

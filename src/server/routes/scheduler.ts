@@ -65,9 +65,6 @@ router.post('/internal/scheduler/price-tick', async (_req, res) => {
         // This ensures trades from this tick are included in the current batch resolution
         await redisService.flushPendingVolumes();
 
-        // Flush accumulated spend limit updates to Redis
-        await redisService.flushSpendingToRedis();
-
         // Step 1: Resolve all pending batches (updates prices in Redis)
         console.log(`[Price Tick] Step 1: Resolving batches...`);
         await tradingEngine.resolveBatches();

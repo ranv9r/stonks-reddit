@@ -84,6 +84,8 @@ export interface UserData {
     joinedAt: number;       // Unix timestamp
     lastTradeAt: number;    // Unix timestamp
     tourCompleted: boolean; // Whether user has completed the guided tour
+    /** Per-stock buy spend tracking. Key = stonkId, value = { bucket: minute bucket, amount: cents spent } */
+    spendData: Record<string, { bucket: number; amount: number }>;
 }
 
 /** Portfolio display for client */
