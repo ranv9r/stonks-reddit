@@ -81,11 +81,17 @@ export const LIQUIDITY_SCALE_THRESHOLD = 500000; // $5,000
 export const USER_SPEND_LIMIT = 2000000; // $20,000 per stonk
 
 /**
- * Maximum sell VALUE per stonk per cooldown window (in cents)
+ * Maximum sell VALUE per stonk per sell cooldown window (in cents)
  * Applies to SELL orders (value at current price)
  * Prevents unlimited dumping that crashes the market
  */
-export const SELL_SPEND_LIMIT = 5000000; // $50,000 per stonk per minute
+export const SELL_SPEND_LIMIT = 10000000; // $100,000 per stonk per hour
+
+/**
+ * Sell cooldown window in milliseconds (1 hour)
+ * Separate from buy cooldown to allow different rate limiting
+ */
+export const SELL_COOLDOWN_WINDOW_MS = 3600000; // 1 hour
 
 /**
  * Reserve floor price (in cents)

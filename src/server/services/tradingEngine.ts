@@ -8,7 +8,7 @@
  * - $10,000/min cooldown per user per stonk
  */
 
-import { USER_SPEND_LIMIT, SELL_SPEND_LIMIT, RESERVE_FLOOR_PRICE } from '../../shared/config';
+import { USER_SPEND_LIMIT, SELL_SPEND_LIMIT, SELL_COOLDOWN_WINDOW_MS, RESERVE_FLOOR_PRICE } from '../../shared/config';
 import type { Portfolio, AMMState, SpendLimitResult } from '../../shared/types/stonks';
 import * as redisService from './redis';
 import * as ammEngine from './ammEngine';
@@ -192,17 +192,20 @@ export async function executeSell(
 
     // --- SELL COOLDOWN CHECK ---
     // Uses a separate 'sell:' prefixed key in spendData to not interfere with buy limits
-    const currentBucket = Math.floor(Date.now() / 60000);
+    // Sell uses 1-hour buckets (vs 1-minute for buys)
+    const sellBucketMs = SELL_COOLDOWN_WINDOW_MS;
+    const currentSellBucket = Math.floor(Date.now() / sellBucketMs);
     const sellSpendKey = `sell:${stonkId}`;
     const sellSpend = user.spendData?.[sellSpendKey];
-    const sellSpentThisBucket = (sellSpend?.bucket === currentBucket) ? sellSpend.amount : 0;
+    const sellSpentThisBucket = (sellSpend?.bucket === currentSellBucket) ? sellSpend.amount : 0;
     const sellRemaining = SELL_SPEND_LIMIT - sellSpentThisBucket;
 
     if (sellRemaining <= 0) {
-        const secsLeft = 60 - (Math.floor(Date.now() / 1000) % 60);
+        const msLeft = sellBucketMs - (Date.now() % sellBucketMs);
+        const minsLeft = Math.ceil(msLeft / 60000);
         return {
             success: false,
-            message: `Sell cooldown active. You've sold $${(sellSpentThisBucket / 100).toFixed(2)} of $${(SELL_SPEND_LIMIT / 100).toFixed(2)} on this stonk. Try again in ~${secsLeft}s.`,
+            message: `Sell cooldown active. You've sold $${(sellSpentThisBucket / 100).toFixed(2)} of $${(SELL_SPEND_LIMIT / 100).toFixed(2)} on this stonk this hour. Try again in ~${minsLeft}min.`,
         };
     }
 
@@ -242,7 +245,7 @@ export async function executeSell(
     // Build updated spendData — track sell spending in separate 'sell:' key
     const updatedSpendData = {
         ...user.spendData,
-        [sellSpendKey]: { bucket: currentBucket, amount: sellSpentThisBucket + Math.round(actualValue) },
+        [sellSpendKey]: { bucket: currentSellBucket, amount: sellSpentThisBucket + Math.round(actualValue) },
     };
 
     // Update wallet, portfolio, and spendData atomically
