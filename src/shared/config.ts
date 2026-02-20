@@ -76,9 +76,23 @@ export const LIQUIDITY_SCALE_THRESHOLD = 500000; // $5,000
 
 /**
  * Maximum amount a user can spend per stonk per cooldown window (in cents)
- * Applies to both BUY (cash spent) and SELL (value at current price)
+ * Applies to BUY orders (cash spent)
  */
 export const USER_SPEND_LIMIT = 2000000; // $20,000 per stonk
+
+/**
+ * Maximum sell VALUE per stonk per cooldown window (in cents)
+ * Applies to SELL orders (value at current price)
+ * Prevents unlimited dumping that crashes the market
+ */
+export const SELL_SPEND_LIMIT = 5000000; // $50,000 per stonk per minute
+
+/**
+ * Reserve floor price (in cents)
+ * The AMM reserves will be clamped so the price never drops below this.
+ * Prevents complete market crashes from draining virtual liquidity.
+ */
+export const RESERVE_FLOOR_PRICE = 2000; // $20.00 minimum
 
 /**
  * Cooldown window duration in milliseconds

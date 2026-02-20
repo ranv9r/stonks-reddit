@@ -8,7 +8,7 @@
  * - $10,000/min cooldown per user per stonk
  */
 
-import { USER_SPEND_LIMIT } from '../../shared/config';
+import { USER_SPEND_LIMIT, SELL_SPEND_LIMIT, RESERVE_FLOOR_PRICE } from '../../shared/config';
 import type { Portfolio, AMMState, SpendLimitResult } from '../../shared/types/stonks';
 import * as redisService from './redis';
 import * as ammEngine from './ammEngine';
@@ -188,28 +188,46 @@ export async function executeSell(
         };
     }
 
-    // Sell Limit: REMOVED. Users can always sell.
-    // We only verify they have the shares.
-    const actualQuantity = quantity;
+    const currentPrice = stonk.currentPrice;
+
+    // --- SELL COOLDOWN CHECK ---
+    // Uses a separate 'sell:' prefixed key in spendData to not interfere with buy limits
+    const currentBucket = Math.floor(Date.now() / 60000);
+    const sellSpendKey = `sell:${stonkId}`;
+    const sellSpend = user.spendData?.[sellSpendKey];
+    const sellSpentThisBucket = (sellSpend?.bucket === currentBucket) ? sellSpend.amount : 0;
+    const sellRemaining = SELL_SPEND_LIMIT - sellSpentThisBucket;
+
+    if (sellRemaining <= 0) {
+        const secsLeft = 60 - (Math.floor(Date.now() / 1000) % 60);
+        return {
+            success: false,
+            message: `Sell cooldown active. You've sold $${(sellSpentThisBucket / 100).toFixed(2)} of $${(SELL_SPEND_LIMIT / 100).toFixed(2)} on this stonk. Try again in ~${secsLeft}s.`,
+        };
+    }
+
+    // Cap quantity by sell spend limit
+    const maxSellValue = sellRemaining;
+    const maxSellQty = maxSellValue / currentPrice;
+    let actualQuantity = Math.min(quantity, maxSellQty);
+
+    // Also cap to what user actually owns
+    actualQuantity = Math.min(actualQuantity, holding.qty);
 
     if (actualQuantity <= 0) {
         return {
             success: false,
-            message: `Sell amount too small.`,
+            message: `Sell amount too small or sell limit reached.`,
         };
     }
 
     // --- INSTANT EXECUTION (Fixed Price) ---
-    // Batching: We pay the user NOW at current price, but update AMM state LATER in tick.
-
-    // 1. Calculate Value (No Slippage)
-    const currentPrice = stonk.currentPrice;
     const actualValue = actualQuantity * currentPrice;
 
-    // 2. Add to Batch (direct Redis write for reliability)
+    // Add to Batch (direct Redis write for reliability)
     await redisService.addSellVolume(stonkId, actualQuantity);
 
-    // 3. Build updated portfolio (Remove Shares)
+    // Build updated portfolio (Remove Shares)
     const updatedPortfolio: Portfolio = { ...user.portfolio };
     updatedPortfolio[stonkId] = {
         ...holding,
@@ -221,14 +239,17 @@ export async function executeSell(
         delete updatedPortfolio[stonkId];
     }
 
-    // 4. Update wallet and portfolio (OPTIMIZED: single HSET with currentBalance)
-    await redisService.atomicUpdateUserTrade(userId, Math.round(actualValue), updatedPortfolio, user.walletBalance);
+    // Build updated spendData — track sell spending in separate 'sell:' key
+    const updatedSpendData = {
+        ...user.spendData,
+        [sellSpendKey]: { bucket: currentBucket, amount: sellSpentThisBucket + Math.round(actualValue) },
+    };
 
-    // 5. Record spending: SKIPPED for Sell.
-    // Sells do not consume the Buy limit.
+    // Update wallet, portfolio, and spendData atomically
+    await redisService.atomicUpdateUserTrade(userId, Math.round(actualValue), updatedPortfolio, user.walletBalance, updatedSpendData);
 
     const message = actualQuantity < quantity
-        ? `Partial sell for ${actualQuantity.toFixed(4)} shares ($${(actualValue / 100).toFixed(2)}).`
+        ? `Partial sell for ${actualQuantity.toFixed(4)} shares ($${(actualValue / 100).toFixed(2)}). Sell limit reached.`
         : `Sold ${actualQuantity.toFixed(4)} shares for $${(actualValue / 100).toFixed(2)}.`;
 
     return {
@@ -290,6 +311,20 @@ export async function resolveBatches(): Promise<void> {
             xReal: stonk.xReal + netCashChange,
             yReal: stonk.yReal + netShareChange,
         };
+
+        // --- RESERVE FLOOR: Prevent price from crashing below RESERVE_FLOOR_PRICE ---
+        // If the new reserves would produce a price below the floor,
+        // clamp xReal so that price = RESERVE_FLOOR_PRICE
+        const xTotal = newState.xVirt + newState.xReal;
+        const yTotal = newState.yVirt + newState.yReal;
+        if (yTotal > 0) {
+            const unclamped = xTotal / yTotal;
+            if (unclamped < RESERVE_FLOOR_PRICE) {
+                // Clamp: xVirt + xReal = RESERVE_FLOOR_PRICE * yTotal
+                newState.xReal = (RESERVE_FLOOR_PRICE * yTotal) - newState.xVirt;
+                console.log(`[Batch] ⚠️ Reserve floor activated for ${stonk.ticker}: clamped price to $${(RESERVE_FLOOR_PRICE / 100).toFixed(2)}`);
+            }
+        }
 
         // New price from updated reserves
         const newPrice = ammEngine.getSpotPrice(newState);
