@@ -129,7 +129,7 @@ export const PRICE_HISTORY_RETENTION_DAYS = 7;
 export const MAX_PRICE_HISTORY_ENTRIES = 10000;
 
 /** Max number of chat messages to fetch and display in the live chat window */
-export const CHAT_MAX_MESSAGES = 100;
+export const CHAT_MAX_MESSAGES = 4;
 
 // ============================================
 // REDIS KEY PATTERNS

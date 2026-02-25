@@ -29,6 +29,8 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
     const prevMessagesLenRef = useRef(0);
     // Realtime connection ref
     const realtimeRef = useRef<{ disconnect: () => Promise<void> } | null>(null);
+    const realtimeDeleteRef = useRef<{ disconnect: () => Promise<void> } | null>(null);
+    const realtimeEditRef = useRef<{ disconnect: () => Promise<void> } | null>(null);
 
     // Fetch consent status and thread URL on mount
     useEffect(() => {
@@ -89,7 +91,7 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
         const setupRealtime = async () => {
             try {
                 // Listen for new messages
-                realtimeRef.current = await connectRealtime({
+                const chatConn = await connectRealtime({
                     channel: 'chat',
                     onMessage: (data: unknown) => {
                         const newMsg = data as ChatMessage & { stonkId: string };
@@ -108,32 +110,44 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
                         }
                     },
                 });
+                realtimeRef.current = chatConn;
+                console.log('[StockChat] ✅ Connected to chat channel');
 
                 // Listen for deletions (instant via Devvit trigger)
-                await connectRealtime({
+                const deleteConn = await connectRealtime({
                     channel: 'chat_delete',
                     onMessage: (data: unknown) => {
                         const { commentId } = data as { commentId: string; threadId: string };
+                        console.log(`[Chat] 🗑️ Received delete event for: ${commentId}`);
 
                         // Remove deleted comment from state
-                        setMessages(prev => prev.filter(m => m.id !== commentId));
-                        console.log(`[Chat] Removed deleted comment: ${commentId}`);
+                        setMessages(prev => {
+                            const filtered = prev.filter(m => m.id !== commentId);
+                            if (filtered.length === prev.length) {
+                                console.log(`[Chat] ⚠️ Comment ${commentId} not found in messages (IDs: ${prev.map(m => m.id).join(', ')})`);
+                            }
+                            return filtered;
+                        });
                     },
                 });
+                realtimeDeleteRef.current = deleteConn;
+                console.log('[StockChat] ✅ Connected to chat_delete channel');
 
                 // Listen for edits (instant via Devvit trigger)
-                await connectRealtime({
+                const editConn = await connectRealtime({
                     channel: 'chat_edit',
                     onMessage: (data: unknown) => {
                         const { commentId, newText } = data as { commentId: string; newText: string; stonkId: string };
+                        console.log(`[Chat] ✏️ Received edit event for: ${commentId}`);
 
                         // Update edited comment text in-place
                         setMessages(prev => prev.map(m =>
                             m.id === commentId ? { ...m, text: newText } : m
                         ));
-                        console.log(`[Chat] Updated edited comment: ${commentId}`);
                     },
                 });
+                realtimeEditRef.current = editConn;
+                console.log('[StockChat] ✅ Connected to chat_edit channel');
             } catch (err) {
                 console.error('[StockChat] Realtime connection failed:', err);
             }
@@ -144,7 +158,14 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
         setupRealtime();
 
         return () => {
+            // Disconnect ALL realtime channels on cleanup
             realtimeRef.current?.disconnect();
+            realtimeDeleteRef.current?.disconnect();
+            realtimeEditRef.current?.disconnect();
+            realtimeRef.current = null;
+            realtimeDeleteRef.current = null;
+            realtimeEditRef.current = null;
+            console.log('[StockChat] 🔌 Disconnected all realtime channels');
         };
     }, [stonkId]);
 

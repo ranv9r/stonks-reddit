@@ -189,10 +189,11 @@ export async function getComments(
             }
         }
 
-        // Fetch latest 100 comments (thread is sorted by 'new', so we get newest first)
+        // Fetch ALL comments from the thread using .all() — this is the only reliable method.
+        // sort/threaded/truncate params are silently stripped by Devvit's wrapper, so we sort & slice ourselves.
         const commentsListing = await reddit.getComments({
             postId: threadId as `t3_${string}`,
-            limit,
+            limit: 200,
             pageSize: 100,
         });
 
@@ -216,10 +217,13 @@ export async function getComments(
             permalink: comment.permalink,
         }));
 
-        // Sort oldest-first for chat display (API returns newest-first)
+        // Sort oldest-first for chat display
         chatMessages.sort((a, b) => a.time - b.time);
 
-        return chatMessages;
+        // Keep only the NEWEST `limit` messages (slice from the end)
+        const recentMessages = chatMessages.slice(-limit);
+
+        return recentMessages;
     } catch (error) {
         console.error('[DiscussionThread] Error fetching comments:', error);
         return [];
