@@ -54,10 +54,6 @@
       "leaderboard-update": {
         "endpoint": "/internal/scheduler/leaderboard-update",
         "cron": "*/30 * * * *"
-      },
-      "chat-deletion-sync": {
-        "endpoint": "/internal/scheduler/chat-deletion-sync",
-        "cron": "*/20 * * * * *"
       }
     }
   },
@@ -112,7 +108,9 @@
     "scheduleEventForm": "/internal/forms/schedule-event"
   },
   "triggers": {
-    "onAppInstall": "/internal/triggers/on-app-install"
+    "onAppInstall": "/internal/triggers/on-app-install",
+    "onCommentDelete": "/internal/on-comment-delete",
+    "onCommentUpdate": "/internal/on-comment-update"
   },
   "dev": {
     "subreddit": "stonk_street_dev"

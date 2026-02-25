@@ -13,6 +13,7 @@ export const AdminView = () => {
     const [error, setError] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
     const [flairsEnabled, setFlairsEnabled] = useState(false);
+    const [deleteTicker, setDeleteTicker] = useState('');
 
     // Fetch all stocks
     const fetchStocks = useCallback(async () => {
@@ -210,6 +211,42 @@ export const AdminView = () => {
         return `$${(cents / 100).toFixed(2)}`;
     };
 
+    /** Delete stock by exact ticker ID — useful for cleaning up ghost stocks */
+    const handleDeleteByTicker = async () => {
+        if (!deleteTicker) return;
+        const id = deleteTicker.toUpperCase();
+
+        // Client-side check: find the stock (trimmed match handles ghost keys with whitespace)
+        const match = stocks.find(s => s.id.trim() === id || s.ticker.trim() === id);
+        if (!match) {
+            setError(`No stock found with ticker "${id}"`);
+            return;
+        }
+
+        // Use actual stock ID for the API call (may contain whitespace)
+        const deleteId = match.id;
+
+        try {
+            setActionLoading(true);
+            setError(null);
+            const response = await fetch(`/api/mod/stonks/${encodeURIComponent(deleteId)}`, {
+                method: 'DELETE',
+            });
+            const data = await response.json();
+            if (data.success) {
+                await fetchStocks();
+                setDeleteTicker('');
+                setError(null);
+            } else {
+                setError(data.error || 'Failed to delete');
+            }
+        } catch (err) {
+            setError(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     return (
         <div className="px-4 py-4 sm:px-6 sm:py-6 space-y-6 fade-in mx-2">
             {/* Header */}
@@ -314,6 +351,25 @@ export const AdminView = () => {
                         </button>
                     )}
                 </div>
+            </div>
+
+            {/* Delete by Ticker — for cleaning up ghost stocks */}
+            <div className="flex items-center gap-2 bg-[#18181b] rounded-lg border border-[#27272a] p-3">
+                <input
+                    type="text"
+                    value={deleteTicker}
+                    onChange={(e) => setDeleteTicker(e.target.value)}
+                    placeholder="Ticker to delete (exact)"
+                    className="flex-1 px-3 py-2 bg-[#27272a] border border-[#3f3f46] rounded-lg text-white text-sm placeholder-[#71717a] focus:outline-none focus:border-red-500/50"
+                />
+                <button
+                    onClick={handleDeleteByTicker}
+                    disabled={actionLoading || !deleteTicker}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                    <TrashIcon size={14} />
+                    Delete
+                </button>
             </div>
 
             {/* Stocks List */}

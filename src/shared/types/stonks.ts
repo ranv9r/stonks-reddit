@@ -248,6 +248,7 @@ export interface ChatMessage {
     username: string;
     text: string;
     time: number; // Unix timestamp
+    permalink?: string; // Reddit comment permalink for edit/delete/report
 }
 
 /** Chat API response */

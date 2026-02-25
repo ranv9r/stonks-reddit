@@ -6,6 +6,7 @@ import marketRoutes from './routes/market';
 import modRoutes from './routes/mod';
 import schedulerRoutes from './routes/scheduler';
 import chatRoutes from './routes/chat';
+import chatTriggerRoutes from './routes/chatTriggers';
 import tourRoutes from './routes/tour';
 import consentRoutes from './routes/consent';
 
@@ -24,6 +25,7 @@ app.use(modRoutes);
 app.use(schedulerRoutes);
 app.use(consentRoutes);
 app.use(chatRoutes);
+app.use(chatTriggerRoutes);
 app.use(tourRoutes);
 
 // Health check endpoint

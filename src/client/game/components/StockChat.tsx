@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { connectRealtime, navigateTo } from '@devvit/web/client';
 import { ChatConsentModal } from './ChatConsentModal';
+import { CHAT_MAX_MESSAGES } from '../../../shared/config';
 import type { ChatMessage, ChatResponse } from '../../../shared/types/stonks';
 
 interface StockChatProps {
@@ -97,13 +98,18 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
                             setMessages(prev => {
                                 // Prevent duplicates
                                 if (prev.some(m => m.id === newMsg.id)) return prev;
-                                return [...prev, newMsg].sort((a, b) => a.time - b.time);
+                                const updated = [...prev, newMsg].sort((a, b) => a.time - b.time);
+                                // Sliding window: keep only the latest N messages
+                                if (updated.length > CHAT_MAX_MESSAGES) {
+                                    return updated.slice(-CHAT_MAX_MESSAGES);
+                                }
+                                return updated;
                             });
                         }
                     },
                 });
 
-                // Listen for deletions (server checks periodically)
+                // Listen for deletions (instant via Devvit trigger)
                 await connectRealtime({
                     channel: 'chat_delete',
                     onMessage: (data: unknown) => {
@@ -112,6 +118,20 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
                         // Remove deleted comment from state
                         setMessages(prev => prev.filter(m => m.id !== commentId));
                         console.log(`[Chat] Removed deleted comment: ${commentId}`);
+                    },
+                });
+
+                // Listen for edits (instant via Devvit trigger)
+                await connectRealtime({
+                    channel: 'chat_edit',
+                    onMessage: (data: unknown) => {
+                        const { commentId, newText } = data as { commentId: string; newText: string; stonkId: string };
+
+                        // Update edited comment text in-place
+                        setMessages(prev => prev.map(m =>
+                            m.id === commentId ? { ...m, text: newText } : m
+                        ));
+                        console.log(`[Chat] Updated edited comment: ${commentId}`);
                     },
                 });
             } catch (err) {
@@ -240,7 +260,7 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
                             onClick={() => navigateTo(threadUrl)}
                             className="text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors underline underline-offset-2 bg-transparent border-none cursor-pointer p-0"
                         >
-                            Edit/Delete Comment
+                            View Thread
                         </button>
                     )}
                     <div className="flex items-center gap-2">
@@ -265,7 +285,7 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
                     </div>
                 ) : (
                     messages.map((msg) => (
-                        <div key={msg.id} className="group animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div key={msg.id} className="group animate-in fade-in slide-in-from-bottom-2 duration-300 relative">
                             <div className="flex items-baseline gap-2 mb-0.5">
                                 <span className="font-bold text-sm text-slate-300 hover:text-emerald-400 transition-colors cursor-pointer">
                                     {msg.username}
@@ -273,6 +293,15 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
                                 <span className="text-[10px] text-slate-500">
                                     {formatTime(msg.time)}
                                 </span>
+                                {/* Per-message action link — visible on hover */}
+                                {msg.permalink && (
+                                    <button
+                                        onClick={() => navigateTo(`https://www.reddit.com${msg.permalink}`)}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity ml-auto text-[10px] text-emerald-400 hover:text-emerald-300 bg-transparent border-none cursor-pointer p-0 underline underline-offset-2 whitespace-nowrap"
+                                    >
+                                        Edit/Delete/Report
+                                    </button>
+                                )}
                             </div>
                             <p className="text-sm text-slate-300 break-words leading-relaxed">
                                 {msg.text}

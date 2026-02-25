@@ -120,7 +120,11 @@ router.post('/api/mod/stonks', async (req, res) => {
             return;
         }
 
-        const { name, ticker, icon, basePrice, imageUrl } = req.body;
+        const { name: rawName, ticker: rawTicker, icon, basePrice, imageUrl } = req.body;
+
+        // Sanitize input — trim whitespace to prevent ghost keys
+        const name = rawName?.trim();
+        const ticker = rawTicker?.trim();
 
         // Validate input
         if (!name || !ticker) {
@@ -226,14 +230,23 @@ router.delete('/api/mod/stonks/:id', async (req, res) => {
             return;
         }
 
-        const { id } = req.params;
-        console.log(`[Mod] Received delete request for ID: "${id}"`);
+        const rawId = req.params.id;
+        console.log(`[Mod] Received delete request for ID: "${rawId}"`);
 
-        const stonk = await redisService.getStonk(id);
+        // Find stock by matching trimmed ID/ticker against all stocks
+        // This handles ghost stocks with whitespace in their IDs that can't be
+        // passed through URL params reliably (Express/proxies strip trailing spaces)
+        const allStonks = await redisService.getAllStonks();
+        const stonk = allStonks.find(s =>
+            s.id === rawId ||
+            s.id.trim() === rawId.trim() ||
+            s.ticker.trim() === rawId.trim()
+        );
         if (!stonk) {
             res.status(404).json({ error: 'Stonk not found' });
             return;
         }
+        const id = stonk.id; // Use the ACTUAL id from Redis (may have whitespace)
 
         // Liquidation Logic: Refund all holders at current price
         let refundCount = 0;

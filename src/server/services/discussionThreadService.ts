@@ -4,6 +4,7 @@
  */
 
 import { redis, reddit, context } from '@devvit/web/server';
+import { CHAT_MAX_MESSAGES } from '../../shared/config';
 import type { ChatMessage } from '../../shared/types/stonks';
 
 /**
@@ -68,6 +69,13 @@ export async function getOrCreateDiscussionThread(
     });
 
     const threadId = post.id;
+
+    // Set comment sort to 'new' so API always returns latest comments first
+    try {
+        await post.setSuggestedCommentSort('NEW');
+    } catch (e) {
+        console.log('[DiscussionThread] Could not set comment sort:', e);
+    }
 
     // Cache the thread ID (no expiration - threads are permanent)
     await redis.set(threadKey, threadId);
@@ -144,40 +152,53 @@ export async function submitComment(
         username: runAsMode === 'USER' ? username : `🤖 ${username}`,
         text: comment.body || trimmedText,
         time: comment.createdAt.getTime(),
+        permalink: comment.permalink,
     };
 
     return chatMessage;
 }
 
 /**
- * Gets comments from the discussion thread.
- * Returns empty array if no thread exists yet.
+ * Gets the latest comments from the discussion thread.
+ * Fetches only 100 latest (Reddit returns newest-first thanks to sort: new on thread).
  */
 export async function getComments(
     stonkId: string,
-    limit: number = 100
+    limit: number = CHAT_MAX_MESSAGES
 ): Promise<ChatMessage[]> {
     const threadKey = getThreadKey(stonkId);
     const threadId = await redis.get(threadKey);
 
-    // If no thread exists yet, return empty array
     if (!threadId) {
         return [];
     }
 
     try {
-        // Fetch comments from Reddit
+        // One-time fix: set sort to 'NEW' for threads created before this change
+        const sortFixKey = `${threadKey}:sort_fixed`;
+        const sortFixed = await redis.get(sortFixKey);
+        if (!sortFixed) {
+            try {
+                const post = await reddit.getPostById(threadId as `t3_${string}`);
+                await post.setSuggestedCommentSort('NEW');
+                await redis.set(sortFixKey, '1');
+                console.log(`[DiscussionThread] Fixed sort for existing thread ${threadId}`);
+            } catch (e) {
+                // Non-critical, continue anyway
+                await redis.set(sortFixKey, '1');
+            }
+        }
+
+        // Fetch latest 100 comments (thread is sorted by 'new', so we get newest first)
         const commentsListing = await reddit.getComments({
             postId: threadId as `t3_${string}`,
-            limit: limit,
+            limit,
             pageSize: 100,
         });
 
         const comments = await commentsListing.all();
 
         // Filter out removed/deleted/spam comments
-        // Since our app runs with mod permissions, getComments() returns
-        // full content of mod-removed comments — we must explicitly filter them
         const visibleComments = comments.filter(c => {
             if (c.removed || c.spam) return false;
             if (c.authorName === '[deleted]') return false;
@@ -185,16 +206,17 @@ export async function getComments(
             return true;
         });
 
-        // Transform Reddit comments to ChatMessage format
+        // Transform to ChatMessage format
         const chatMessages: ChatMessage[] = visibleComments.map(comment => ({
             id: comment.id,
             userId: comment.authorId || 'unknown',
             username: comment.authorName || 'Unknown',
             text: comment.body || '',
             time: comment.createdAt.getTime(),
+            permalink: comment.permalink,
         }));
 
-        // Sort by time (oldest first, like a chat)
+        // Sort oldest-first for chat display (API returns newest-first)
         chatMessages.sort((a, b) => a.time - b.time);
 
         return chatMessages;
