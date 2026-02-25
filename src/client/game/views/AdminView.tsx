@@ -13,7 +13,7 @@ export const AdminView = () => {
     const [error, setError] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
     const [flairsEnabled, setFlairsEnabled] = useState(false);
-    const [deleteTicker, setDeleteTicker] = useState('');
+    // const [deleteTicker, setDeleteTicker] = useState(''); // Ghost stock cleanup — disabled for now
 
     // Fetch all stocks
     const fetchStocks = useCallback(async () => {
@@ -211,41 +211,41 @@ export const AdminView = () => {
         return `$${(cents / 100).toFixed(2)}`;
     };
 
-    /** Delete stock by exact ticker ID — useful for cleaning up ghost stocks */
-    const handleDeleteByTicker = async () => {
-        if (!deleteTicker) return;
-        const id = deleteTicker.toUpperCase();
-
-        // Client-side check: find the stock (trimmed match handles ghost keys with whitespace)
-        const match = stocks.find(s => s.id.trim() === id || s.ticker.trim() === id);
-        if (!match) {
-            setError(`No stock found with ticker "${id}"`);
-            return;
-        }
-
-        // Use actual stock ID for the API call (may contain whitespace)
-        const deleteId = match.id;
-
-        try {
-            setActionLoading(true);
-            setError(null);
-            const response = await fetch(`/api/mod/stonks/${encodeURIComponent(deleteId)}`, {
-                method: 'DELETE',
-            });
-            const data = await response.json();
-            if (data.success) {
-                await fetchStocks();
-                setDeleteTicker('');
-                setError(null);
-            } else {
-                setError(data.error || 'Failed to delete');
-            }
-        } catch (err) {
-            setError(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
-        } finally {
-            setActionLoading(false);
-        }
-    };
+    // /** Delete stock by exact ticker ID — useful for cleaning up ghost stocks */
+    // const handleDeleteByTicker = async () => {
+    //     if (!deleteTicker) return;
+    //     const id = deleteTicker.toUpperCase();
+    //
+    //     // Client-side check: find the stock (trimmed match handles ghost keys with whitespace)
+    //     const match = stocks.find(s => s.id.trim() === id || s.ticker.trim() === id);
+    //     if (!match) {
+    //         setError(`No stock found with ticker "${id}"`);
+    //         return;
+    //     }
+    //
+    //     // Use actual stock ID for the API call (may contain whitespace)
+    //     const deleteId = match.id;
+    //
+    //     try {
+    //         setActionLoading(true);
+    //         setError(null);
+    //         const response = await fetch(`/api/mod/stonks/${encodeURIComponent(deleteId)}`, {
+    //             method: 'DELETE',
+    //         });
+    //         const data = await response.json();
+    //         if (data.success) {
+    //             await fetchStocks();
+    //             setDeleteTicker('');
+    //             setError(null);
+    //         } else {
+    //             setError(data.error || 'Failed to delete');
+    //         }
+    //     } catch (err) {
+    //         setError(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+    //     } finally {
+    //         setActionLoading(false);
+    //     }
+    // };
 
     return (
         <div className="px-4 py-4 sm:px-6 sm:py-6 space-y-6 fade-in mx-2">
@@ -353,7 +353,7 @@ export const AdminView = () => {
                 </div>
             </div>
 
-            {/* Delete by Ticker — for cleaning up ghost stocks */}
+            {/* Delete by Ticker — for cleaning up ghost stocks (disabled for now)
             <div className="flex items-center gap-2 bg-[#18181b] rounded-lg border border-[#27272a] p-3">
                 <input
                     type="text"
@@ -371,6 +371,7 @@ export const AdminView = () => {
                     Delete
                 </button>
             </div>
+            */}
 
             {/* Stocks List */}
             <div className="bg-[#18181b] rounded-xl border border-[#27272a] overflow-hidden">

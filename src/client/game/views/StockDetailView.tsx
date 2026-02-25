@@ -289,10 +289,13 @@ const TradeModal = ({ isOpen, action, stonk, userHolding, walletBalance, isPosit
         setTrading(true);
         setMessage(null);
 
-        // For buy: amount is in cents (totalCost)
+        // Recalculate cost at submit time to ensure latest realtime price is used
+        const liveTotalCost = quantity * stonk.currentPrice;
+
+        // For buy: amount is in cents (liveTotalCost)
         // For sell: amount is quantity (shares)
         if (action === 'buy') {
-            const result = await onTrade(totalCost / 100); // Convert cents to dollars
+            const result = await onTrade(liveTotalCost / 100); // Convert cents to dollars
             handleResult(result);
         } else {
             const result = await onTrade(quantity); // Pass shares directly
