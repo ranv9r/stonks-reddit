@@ -294,7 +294,7 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
             {/* Messages List */}
             <div
                 ref={chatContainerRef}
-                className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0"
+                className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0"
             >
                 {loading && messages.length === 0 ? (
                     <div className="flex justify-center items-center h-full text-slate-500 text-sm">
@@ -314,19 +314,19 @@ export function StockChat({ stonkId, className = '' }: StockChatProps) {
                                 <span className="text-[10px] text-slate-500">
                                     {formatTime(msg.time)}
                                 </span>
-                                {/* Per-message action link — visible on hover */}
-                                {msg.permalink && (
-                                    <button
-                                        onClick={() => navigateTo(`https://www.reddit.com${msg.permalink}`)}
-                                        className="opacity-0 group-hover:opacity-100 transition-opacity ml-auto text-[10px] text-emerald-400 hover:text-emerald-300 bg-transparent border-none cursor-pointer p-0 underline underline-offset-2 whitespace-nowrap"
-                                    >
-                                        Edit/Delete/Report
-                                    </button>
-                                )}
                             </div>
                             <p className="text-sm text-slate-300 break-words leading-relaxed">
                                 {msg.text}
                             </p>
+                            {/* Per-message action link — absolutely positioned so it doesn't affect layout */}
+                            {msg.permalink && (
+                                <button
+                                    onClick={() => navigateTo(`https://www.reddit.com${msg.permalink}`)}
+                                    className="hidden group-hover:block absolute top-0 right-0 text-[10px] text-emerald-400 hover:text-emerald-300 bg-slate-900/90 backdrop-blur-sm px-1.5 py-0.5 rounded border-none cursor-pointer underline underline-offset-2 whitespace-nowrap"
+                                >
+                                    Edit/Delete/Report
+                                </button>
+                            )}
                         </div>
                     ))
                 )}

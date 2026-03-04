@@ -8,8 +8,8 @@
  * - $10,000/min cooldown per user per stonk
  */
 
-import { USER_SPEND_LIMIT, SELL_SPEND_LIMIT, SELL_COOLDOWN_WINDOW_MS, RESERVE_FLOOR_PRICE } from '../../shared/config';
-import type { Portfolio, AMMState, SpendLimitResult } from '../../shared/types/stonks';
+import { USER_SPEND_LIMIT, SELL_SPEND_LIMIT, SELL_COOLDOWN_WINDOW_MS } from '../../shared/config';
+import type { Portfolio, SpendLimitResult } from '../../shared/types/stonks';
 import * as redisService from './redis';
 import * as ammEngine from './ammEngine';
 
@@ -262,21 +262,12 @@ export async function executeSell(
     };
 }
 
-// ============================================
-// BATCH RESOLUTION (Called by scheduler job)
-// ============================================
-
 /**
  * Resolves all pending batches using AMM engine.
  * This should be called by the 5-second tick job.
  * 
- * Execution order: SELL-FIRST, BUY-LATER
- */
-/**
- * Resolves all pending batches using AMM engine.
- * This should be called by the 5-second tick job.
- * 
- * Aggregates all buy/sell volume since last tick and updates the price.
+ * Uses the constant-product AMM curve for symmetric buy/sell impact.
+ * Price floor is enforced inside ammEngine.executeSellBatch().
  */
 export async function resolveBatches(): Promise<void> {
     const stonks = await redisService.getAllStonks();
@@ -289,58 +280,41 @@ export async function resolveBatches(): Promise<void> {
 
         const preBatchPrice = stonk.currentPrice;
 
-        // --- CRITICAL FIX: Match AMM state to ACTUAL traded amounts ---
-        // Users traded at FIXED PRICE, so we must update reserves based on
-        // what actually happened, not what the AMM curve would have given.
-
-        // At fixed price P:
-        // - Buys: users paid buyVolume cash, got buyVolume/P shares
-        // - Sells: users gave sellVolume shares, got sellVolume*P cash
-
-        const sharesFromBuys = buyVolume / preBatchPrice;  // Shares distributed to buyers
-        const cashFromSells = sellVolume * preBatchPrice; // Cash paid to sellers
-
-        // Net effect on reserves (from the pool's perspective):
-        // - Cash: +buyVolume (from buyers) -cashFromSells (to sellers)
-        // - Shares: -sharesFromBuys (to buyers) +sellVolume (from sellers)
-
-        const netCashChange = buyVolume - cashFromSells;
-        const netShareChange = sellVolume - sharesFromBuys;
-
-        // Build new AMM state with direct reserve update
-        const newState: AMMState = {
+        // Build current AMM state from stonk data
+        const currentState = {
             xVirt: stonk.xVirt,
             yVirt: stonk.yVirt,
-            xReal: stonk.xReal + netCashChange,
-            yReal: stonk.yReal + netShareChange,
+            xReal: stonk.xReal,
+            yReal: stonk.yReal,
         };
 
-        // --- RESERVE FLOOR: Prevent price from crashing below RESERVE_FLOOR_PRICE ---
-        // If the new reserves would produce a price below the floor,
-        // clamp xReal so that price = RESERVE_FLOOR_PRICE
-        const xTotal = newState.xVirt + newState.xReal;
-        const yTotal = newState.yVirt + newState.yReal;
-        if (yTotal > 0) {
-            const unclamped = xTotal / yTotal;
-            if (unclamped < RESERVE_FLOOR_PRICE) {
-                // Clamp: xVirt + xReal = RESERVE_FLOOR_PRICE * yTotal
-                newState.xReal = (RESERVE_FLOOR_PRICE * yTotal) - newState.xVirt;
-                console.log(`[Batch] ⚠️ Reserve floor activated for ${stonk.ticker}: clamped price to $${(RESERVE_FLOOR_PRICE / 100).toFixed(2)}`);
-            }
-        }
+        // --- Use AMM curve for proper symmetric execution ---
+        // Sells first (adds shares, removes cash) → Buys second (adds cash, removes shares)
+        // The constant-product formula ensures buy/sell have equal price impact.
+        // Price floor is enforced inside executeSellBatch().
+
+        let state = { ...currentState };
+
+        // Step 1: Execute sells through AMM curve
+        const sellResult = ammEngine.executeSellBatch(state, sellVolume);
+        state = sellResult.newState;
+
+        // Step 2: Execute buys through AMM curve
+        const buyResult = ammEngine.executeBuyBatch(state, buyVolume);
+        state = buyResult.newState;
 
         // New price from updated reserves
-        const newPrice = ammEngine.getSpotPrice(newState);
-        const totalVol = Math.abs(buyVolume) + Math.abs(cashFromSells);
+        const newPrice = ammEngine.getSpotPrice(state);
+        const totalVol = Math.abs(buyVolume) + Math.abs(sellResult.cashPaidOut);
 
         await redisService.updateStonkAMMState(
             stonk.id,
-            newState,
+            state,
             newPrice,
             Math.round(totalVol)
         );
 
-        console.log(`[Batch] ${stonk.ticker}: Buys=$${buyVolume / 100} (${sharesFromBuys.toFixed(4)}sh), Sells=${sellVolume.toFixed(4)}sh ($${cashFromSells / 100}) -> Price: $${preBatchPrice / 100} -> $${newPrice / 100}`);
+        console.log(`[Batch] ${stonk.ticker}: Buys=$${(buyVolume / 100).toFixed(2)} (${buyResult.stockDistributed.toFixed(4)}sh), Sells=${sellVolume.toFixed(4)}sh ($${(sellResult.cashPaidOut / 100).toFixed(2)}) -> Price: $${(preBatchPrice / 100).toFixed(2)} -> $${(newPrice / 100).toFixed(2)}`);
     }));
 }
 

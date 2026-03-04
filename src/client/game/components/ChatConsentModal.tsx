@@ -31,7 +31,11 @@ export function ChatConsentModal({ onAccept, onDecline }: ChatConsentModalProps)
                     </p>
                     <p className="text-slate-400 text-xs">
                         Your username will be visible in the live chat and on the thread.
-                        You can edit or delete your comments directly on the discussion thread.
+                    </p>
+                    <p className="text-slate-400 text-xs">
+                        ✏️ To <strong className="text-slate-300">edit, delete, or report</strong> a message,
+                        hover over it and click the <em className="text-emerald-400">Edit/Delete/Report</em> link
+                        to open it directly on Reddit.
                     </p>
                 </div>
 

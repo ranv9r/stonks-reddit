@@ -9,7 +9,7 @@
 import {
     MIN_PRICE,
     LIQUIDITY_SCALE_ALPHA,
-    LIQUIDITY_SCALE_THRESHOLD,
+    RESERVE_FLOOR_PRICE,
 } from '../../shared/config';
 import type {
     AMMState,
@@ -22,12 +22,22 @@ import type {
 // ============================================
 
 /**
- * Calculate total reserves (virtual + real)
+ * Calculate total effective reserves (virtual + real) with dynamic scaling.
+ * Virtual reserves scale proportionally to real reserves so that
+ * liquidity deepens automatically as the stock gets more active.
+ *
+ * Formula: effectiveVirt = virt × (1 + α × |real| / virt)
  */
 export function getTotals(state: AMMState): { xTotal: number; yTotal: number } {
+    const alpha = LIQUIDITY_SCALE_ALPHA;
+
+    // Scale virtual reserves based on how large real reserves are relative to virtual
+    const xVirtEffective = state.xVirt * (1 + alpha * Math.abs(state.xReal) / Math.max(state.xVirt, 1));
+    const yVirtEffective = state.yVirt * (1 + alpha * Math.abs(state.yReal) / Math.max(state.yVirt, 1));
+
     return {
-        xTotal: state.xVirt + state.xReal,
-        yTotal: state.yVirt + state.yReal,
+        xTotal: xVirtEffective + state.xReal,
+        yTotal: yVirtEffective + state.yReal,
     };
 }
 
@@ -50,24 +60,7 @@ export function calculateK(state: AMMState): number {
     return xTotal * yTotal;
 }
 
-/**
- * Check if liquidity scaling should be triggered
- */
-export function shouldScaleLiquidity(buyVolume: number): boolean {
-    return buyVolume > LIQUIDITY_SCALE_THRESHOLD;
-}
 
-/**
- * Scale virtual liquidity when volume exceeds threshold
- * This prevents the market from "breaking" on large orders
- */
-export function scaleLiquidity(state: AMMState): AMMState {
-    return {
-        ...state,
-        xVirt: Math.round(state.xVirt * (1 + LIQUIDITY_SCALE_ALPHA)),
-        yVirt: state.yVirt * (1 + LIQUIDITY_SCALE_ALPHA),
-    };
-}
 
 // ============================================
 // BATCH EXECUTION
@@ -75,7 +68,8 @@ export function scaleLiquidity(state: AMMState): AMMState {
 
 /**
  * Execute sell orders first (adds shares to pool, removes cash)
- * 
+ * Enforces RESERVE_FLOOR_PRICE — caps shares absorbed so price never drops below floor.
+ *
  * Formula for selling:
  * - New y = y + sellShares
  * - New x = k / newY
@@ -92,20 +86,35 @@ export function executeSellBatch(
     const { xTotal, yTotal } = getTotals(state);
     const k = xTotal * yTotal;
 
+    // --- PRICE FLOOR: Cap shares so price doesn't drop below RESERVE_FLOOR_PRICE ---
+    // After sell: price = k / (yTotal + shares)^2 ... simplified: newX / newY >= RESERVE_FLOOR_PRICE
+    // newX = k / newY, so k / newY^2 >= RESERVE_FLOOR_PRICE => newY <= sqrt(k / RESERVE_FLOOR_PRICE)
+    const maxYForFloor = Math.sqrt(k / RESERVE_FLOOR_PRICE);
+    const maxSellableShares = Math.max(0, maxYForFloor - yTotal);
+    const clampedSellShares = Math.min(totalSellShares, maxSellableShares);
+
+    if (clampedSellShares <= 0) {
+        console.log(`[AMM] ⚠️ Price floor active — sell blocked (price would drop below $${(RESERVE_FLOOR_PRICE / 100).toFixed(2)})`);
+        return { newState: state, cashPaidOut: 0, avgSellPrice: 0 };
+    }
+
+    if (clampedSellShares < totalSellShares) {
+        console.log(`[AMM] ⚠️ Price floor capped sell: ${totalSellShares.toFixed(4)} → ${clampedSellShares.toFixed(4)} shares`);
+    }
+
     // New reserves after adding shares
-    const newYTotal = yTotal + totalSellShares;
+    const newYTotal = yTotal + clampedSellShares;
     const newXTotal = k / newYTotal;
     const cashPaidOut = xTotal - newXTotal;
 
     // Calculate how this affects real reserves
-    // Sellers add real stock, we pay out from virtual/real cash
     const newState: AMMState = {
         ...state,
-        yReal: state.yReal + totalSellShares,
+        yReal: state.yReal + clampedSellShares,
         xReal: state.xReal - cashPaidOut,
     };
 
-    const avgSellPrice = totalSellShares > 0 ? cashPaidOut / totalSellShares : 0;
+    const avgSellPrice = clampedSellShares > 0 ? cashPaidOut / clampedSellShares : 0;
 
     return { newState, cashPaidOut, avgSellPrice };
 }
@@ -162,37 +171,30 @@ export function resolveBatch(
     tick: number
 ): { newState: AMMState; result: BatchExecutionResult } {
     const preBatchPrice = getSpotPrice(initialState);
-    
+
     // Aggregate orders by type
     const totalBuyCash = orders
         .filter(o => o.type === 'buy')
         .reduce((sum, o) => sum + o.amount, 0);
-    
+
     const totalSellShares = orders
         .filter(o => o.type === 'sell')
         .reduce((sum, o) => sum + o.amount, 0);
 
     let currentState = { ...initialState };
-    let liquidityScaled = false;
 
-    // Step 1: Check for liquidity scaling (Anti-Break Mechanism)
-    if (shouldScaleLiquidity(totalBuyCash)) {
-        currentState = scaleLiquidity(currentState);
-        liquidityScaled = true;
-    }
-
-    // Step 2: Execute SELLS first (price dips)
+    // Step 1: Execute SELLS first (price dips)
     const sellResult = executeSellBatch(currentState, totalSellShares);
     currentState = sellResult.newState;
 
-    // Step 3: Execute BUYS second (price pumps)
+    // Step 2: Execute BUYS second (price pumps)
     const buyResult = executeBuyBatch(currentState, totalBuyCash);
     currentState = buyResult.newState;
 
     // Calculate final state
     const postBatchPrice = getSpotPrice(currentState);
-    const priceChange = preBatchPrice > 0 
-        ? ((postBatchPrice - preBatchPrice) / preBatchPrice) * 100 
+    const priceChange = preBatchPrice > 0
+        ? ((postBatchPrice - preBatchPrice) / preBatchPrice) * 100
         : 0;
 
     const result: BatchExecutionResult = {
@@ -203,7 +205,7 @@ export function resolveBatch(
         totalSellVolume: Math.round(totalSellShares * preBatchPrice), // Convert to cents
         priceChange,
         newK: calculateK(currentState),
-        liquidityScaled,
+        liquidityScaled: false,
         sellExecution: totalSellShares > 0 ? {
             sharesAdded: totalSellShares,
             cashPaidOut: sellResult.cashPaidOut,

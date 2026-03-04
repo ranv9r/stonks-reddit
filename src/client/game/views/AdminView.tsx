@@ -13,6 +13,9 @@ export const AdminView = () => {
     const [error, setError] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
     const [flairsEnabled, setFlairsEnabled] = useState(false);
+    const [walletUsername, setWalletUsername] = useState('');
+    const [walletAmount, setWalletAmount] = useState('');
+    const [walletMessage, setWalletMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     // const [deleteTicker, setDeleteTicker] = useState(''); // Ghost stock cleanup — disabled for now
 
     // Fetch all stocks
@@ -247,6 +250,40 @@ export const AdminView = () => {
     //     }
     // };
 
+    /** Adds money to a user's wallet by Reddit username */
+    const handleAddWallet = async () => {
+        if (!walletUsername.trim()) {
+            setWalletMessage({ type: 'error', text: 'Please enter a username' });
+            return;
+        }
+        const amt = parseFloat(walletAmount);
+        if (!amt || amt <= 0) {
+            setWalletMessage({ type: 'error', text: 'Please enter a valid amount greater than $0' });
+            return;
+        }
+        try {
+            setActionLoading(true);
+            setWalletMessage(null);
+            const response = await fetch('/api/mod/add-wallet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: walletUsername.trim(), amount: amt }),
+            });
+            const data = await response.json();
+            if (data.success) {
+                setWalletMessage({ type: 'success', text: data.message });
+                setWalletUsername('');
+                setWalletAmount('');
+            } else {
+                setWalletMessage({ type: 'error', text: data.error || 'Failed to add money' });
+            }
+        } catch (err) {
+            setWalletMessage({ type: 'error', text: `Error: ${err instanceof Error ? err.message : String(err)}` });
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     return (
         <div className="px-4 py-4 sm:px-6 sm:py-6 space-y-6 fade-in mx-2">
             {/* Header */}
@@ -433,6 +470,43 @@ export const AdminView = () => {
                 )}
             </div>
 
+            {/* Add Wallet Money */}
+            <div className="bg-[#18181b] rounded-xl border border-[#27272a] p-4">
+                <h3 className="font-semibold text-white mb-3">💰 Add Money to User Wallet</h3>
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                        type="text"
+                        value={walletUsername}
+                        onChange={(e) => setWalletUsername(e.target.value)}
+                        placeholder="Reddit username (e.g. spez)"
+                        className="flex-1 px-3 py-2 bg-[#27272a] border border-[#3f3f46] rounded-lg text-white text-sm placeholder-[#71717a] focus:outline-none focus:border-[#FF4500]/50"
+                    />
+                    <input
+                        type="number"
+                        value={walletAmount}
+                        onChange={(e) => setWalletAmount(e.target.value)}
+                        placeholder="Amount ($)"
+                        min="1"
+                        className="w-full sm:w-32 px-3 py-2 bg-[#27272a] border border-[#3f3f46] rounded-lg text-white text-sm placeholder-[#71717a] focus:outline-none focus:border-[#FF4500]/50"
+                    />
+                    <button
+                        onClick={handleAddWallet}
+                        disabled={actionLoading || !walletUsername.trim() || !walletAmount}
+                        className="px-4 py-2 bg-[#22c55e] hover:bg-[#16a34a] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
+                    >
+                        Add Money
+                    </button>
+                </div>
+                {walletMessage && (
+                    <div className={`mt-3 text-sm px-3 py-2 rounded-lg ${walletMessage.type === 'success'
+                            ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+                            : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                        }`}>
+                        {walletMessage.text}
+                    </div>
+                )}
+            </div>
+
             {/* Info Section */}
             <div className="bg-[#18181b] rounded-xl border border-[#27272a] p-4">
                 <h3 className="font-semibold text-white mb-2">Admin Actions</h3>
@@ -440,6 +514,7 @@ export const AdminView = () => {
                     <li>• <strong>Create Stock</strong>: Add a new tradeable stock with optional logo</li>
                     <li>• <strong>Delete Stock</strong>: Remove a stock (users lose their holdings)</li>
                     <li>• <strong>Reset Game</strong>: Reset all wallets to $10,000 and stocks to $100</li>
+                    <li>• <strong>Add Wallet Money</strong>: Add money to any player&apos;s wallet by username</li>
                 </ul>
             </div>
         </div>

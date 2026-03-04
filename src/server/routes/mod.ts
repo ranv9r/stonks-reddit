@@ -798,5 +798,87 @@ router.post('/api/mod/update-flairs', async (_req, res) => {
     }
 });
 
+// ============================================
+// ADMIN WALLET MANAGEMENT
+// ============================================
+
+/**
+ * POST /api/mod/add-wallet - Add money to a user's wallet by Reddit username.
+ * Validates username exists and user has played the game.
+ */
+router.post('/api/mod/add-wallet', async (req, res) => {
+    try {
+        const { userId } = context;
+        if (!userId) {
+            res.status(401).json({ error: 'Must be logged in' });
+            return;
+        }
+
+        const isMod = await isCurrentUserModerator();
+        if (!isMod) {
+            res.status(403).json({ error: 'Moderator access required' });
+            return;
+        }
+
+        const { username, amount } = req.body;
+
+        // Validate inputs
+        if (!username || typeof username !== 'string') {
+            res.status(400).json({ error: 'Username is required' });
+            return;
+        }
+
+        const amountNum = Number(amount);
+        if (!amountNum || amountNum <= 0 || amountNum > 1000000) {
+            res.status(400).json({ error: 'Amount must be between $0.01 and $1,000,000' });
+            return;
+        }
+
+        // Clean username — remove u/ prefix if present
+        const cleanUsername = username.trim().replace(/^u\//, '');
+
+        // Look up Reddit user by username to get their t2_ ID
+        let redditUser;
+        try {
+            redditUser = await reddit.getUserByUsername(cleanUsername);
+        } catch (lookupErr) {
+            console.warn(`[Add Wallet] Reddit user lookup failed for "${cleanUsername}":`, lookupErr);
+            res.status(404).json({ error: `Reddit user "${cleanUsername}" not found` });
+            return;
+        }
+
+        if (!redditUser) {
+            res.status(404).json({ error: `Reddit user "${cleanUsername}" not found` });
+            return;
+        }
+
+        const targetUserId = redditUser.id;
+
+        // Check the user exists in our game data (has played)
+        const gameUser = await redisService.getUser(targetUserId);
+        if (!gameUser) {
+            res.status(404).json({
+                error: `User "${cleanUsername}" hasn't played the game yet. They need to open the app first.`
+            });
+            return;
+        }
+
+        // Add money to wallet (amount is in dollars, convert to cents)
+        const amountCents = Math.round(amountNum * 100);
+        const newBalance = await redisService.updateWalletBalance(targetUserId, amountCents);
+
+        console.log(`[Add Wallet] 💰 ${userId} added $${amountNum.toFixed(2)} to ${cleanUsername} (${targetUserId}). New balance: $${(newBalance / 100).toFixed(2)}`);
+
+        res.json({
+            success: true,
+            message: `Added $${amountNum.toFixed(2)} to ${cleanUsername}'s wallet. New balance: $${(newBalance / 100).toFixed(2)}`,
+            newBalance: newBalance,
+        });
+    } catch (error) {
+        console.error('[Add Wallet] Error:', error);
+        res.status(500).json({ error: 'Failed to add money to wallet' });
+    }
+});
+
 export default router;
 

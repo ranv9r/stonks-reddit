@@ -26,8 +26,8 @@ export const STARTING_BALANCE = 1000000; // $10,000.00
 /** Default base price for new stonks (in cents) - $100 */
 export const DEFAULT_BASE_PRICE = 10000; // $100.00
 
-/** Minimum price floor for any stonk (in cents) */
-export const MIN_PRICE = 100; // $1.00 minimum
+/** Minimum price floor for any stonk (in cents) — matches RESERVE_FLOOR_PRICE */
+export const MIN_PRICE = 2000; // $20.00 minimum
 
 // ============================================
 // AMM (Automated Market Maker) CONFIGURATION
@@ -58,16 +58,12 @@ export const DEFAULT_Y_VIRT = 10000; // 10,000 virtual shares
 export const INITIAL_K = DEFAULT_X_VIRT * DEFAULT_Y_VIRT;
 
 /**
- * Liquidity scaling factor for anti-break mechanism
- * When buy volume exceeds threshold, virtual reserves increase by this %
+ * Dynamic liquidity scaling dampening factor.
+ * Virtual reserves scale proportionally to real reserves:
+ *   effectiveVirt = virt × (1 + ALPHA × |real| / virt)
+ * Higher alpha = more dampening as stock grows.
  */
-export const LIQUIDITY_SCALE_ALPHA = 0.05; // 5% increase
-
-/**
- * Volume threshold that triggers liquidity scaling (in cents)
- * When buy volume in a batch exceeds this, k gets scaled up
- */
-export const LIQUIDITY_SCALE_THRESHOLD = 500000; // $5,000
+export const LIQUIDITY_SCALE_ALPHA = 0.5;
 
 // ============================================
 // COOLDOWN / RATE LIMITING CONFIGURATION
@@ -85,13 +81,13 @@ export const USER_SPEND_LIMIT = 2000000; // $20,000 per stonk
  * Applies to SELL orders (value at current price)
  * Prevents unlimited dumping that crashes the market
  */
-export const SELL_SPEND_LIMIT = 10000000; // $100,000 per stonk per hour
+export const SELL_SPEND_LIMIT = 30000000; // $300,000 per stonk per 30 min
 
 /**
- * Sell cooldown window in milliseconds (1 hour)
+ * Sell cooldown window in milliseconds (30 minutes)
  * Separate from buy cooldown to allow different rate limiting
  */
-export const SELL_COOLDOWN_WINDOW_MS = 3600000; // 1 hour
+export const SELL_COOLDOWN_WINDOW_MS = 1800000; // 30 minutes
 
 /**
  * Reserve floor price (in cents)
@@ -129,7 +125,7 @@ export const PRICE_HISTORY_RETENTION_DAYS = 7;
 export const MAX_PRICE_HISTORY_ENTRIES = 10000;
 
 /** Max number of chat messages to fetch and display in the live chat window */
-export const CHAT_MAX_MESSAGES = 4;
+export const CHAT_MAX_MESSAGES = 100;
 
 // ============================================
 // REDIS KEY PATTERNS
