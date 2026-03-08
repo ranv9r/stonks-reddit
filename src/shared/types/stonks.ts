@@ -254,3 +254,35 @@ export interface ChatResponse {
     messages: ChatMessage[];
     nextCursor?: number; // For possible future pagination, currently using timestamp
 }
+
+// ============================================
+// IPO TYPES
+// ============================================
+
+export type IpoStatus = 'pending' | 'listed' | 'expired';
+
+/** IPO state stored in Redis */
+export interface IpoState {
+    id: string;
+    name: string;
+    ticker: string;
+    icon: string;
+    imageUrl?: string;              // optional uploaded logo url
+    proposedBy: string;         // userId of proposer
+    proposerName: string;       // display name of proposer
+    status: IpoStatus;
+    totalPot: number;           // cents collected so far
+    potTarget: number;          // cents needed to list
+    subscriberCount: number;    // slots filled
+    maxSubscribers: number;     // total slots
+    createdAt: number;          // Unix timestamp
+    expiresAt: number;          // Unix timestamp (createdAt + 48h)
+}
+
+/** IPO list API response */
+export interface IpoListResponse {
+    ipos: IpoState[];
+    userSubscriptions: string[];  // ipoIds the current user has subscribed to
+    canPropose: boolean;          // false if user is on 24h cooldown or insufficient balance
+    nextProposalAt: number | null; // timestamp when user can propose again
+}

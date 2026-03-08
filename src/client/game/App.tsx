@@ -11,10 +11,11 @@ import { PortfolioView } from './views/PortfolioView';
 import { LeaderboardView } from './LeaderboardView';
 import { StockDetailView } from './views/StockDetailView';
 import { AdminView } from './views/AdminView';
-import { ChartIcon, BriefcaseIcon, TrophyIcon, LogoChartIcon, SettingsIcon } from './components/Icons';
+import { IpoView } from './views/IpoView';
+import { ChartIcon, BriefcaseIcon, TrophyIcon, LogoChartIcon, SettingsIcon, RocketIcon } from './components/Icons';
 import { TourProvider } from './contexts/TourProvider';
 
-type View = 'market' | 'portfolio' | 'leaderboard' | 'detail' | 'admin';
+type View = 'market' | 'portfolio' | 'leaderboard' | 'detail' | 'admin' | 'ipo';
 
 export const App = () => {
   const [currentView, setCurrentView] = useState<View>('market');
@@ -28,7 +29,7 @@ export const App = () => {
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
   const SWIPE_THRESHOLD = 50; // minimum distance to trigger swipe
-  const SWIPEABLE_VIEWS: View[] = ['market', 'portfolio', 'leaderboard'];
+  const SWIPEABLE_VIEWS: View[] = ['market', 'ipo', 'portfolio', 'leaderboard'];
 
   /** Handles touch start event for swipe detection */
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -219,6 +220,17 @@ export const App = () => {
             <span className="font-medium">Market</span>
           </button>
           <button
+            onClick={() => setCurrentView('ipo')}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-200 ${currentView === 'ipo'
+              ? 'bg-[#FF4500] text-white shadow-lg'
+              : 'text-[#a1a1aa] hover:bg-[#18181b] hover:text-white'
+              }`}
+            aria-label="IPO"
+          >
+            <RocketIcon size={20} />
+            <span className="font-medium">IPO</span>
+          </button>
+          <button
             onClick={() => setCurrentView('portfolio')}
             className={`tour-nav-portfolio flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-200 ${currentView === 'portfolio'
               ? 'bg-[#FF4500] text-white shadow-lg'
@@ -269,6 +281,11 @@ export const App = () => {
               <MarketView onStonkClick={handleStonkClick} subredditName={subredditName} isMarketOpen={isMarketOpen} />
             </div>
           )}
+          {currentView === 'ipo' && (
+            <div className="view-enter">
+              <IpoView />
+            </div>
+          )}
           {currentView === 'portfolio' && (
             <div className="view-enter">
               <PortfolioView onStonkClick={handleStonkClick} isMarketOpen={isMarketOpen} />
@@ -308,7 +325,20 @@ export const App = () => {
               }`}>
               Market
             </div>
-
+          </button>
+          <button
+            onClick={() => setCurrentView('ipo')}
+            className={`relative flex-1 flex flex-col items-center gap-0.5 py-3 sm:py-4 transition-all duration-200 ${currentView === 'ipo'
+              ? 'text-[#FF4500]'
+              : 'text-[#71717a] hover:text-[#a1a1aa]'
+              }`}
+            aria-label="IPO"
+          >
+            <RocketIcon size={22} />
+            <div className={`text-[13px] sm:text-[15px] font-medium transition-all ${currentView === 'ipo' ? 'scale-105' : 'scale-100'
+              }`}>
+              IPO
+            </div>
           </button>
           <button
             id="tour-nav-portfolio"
