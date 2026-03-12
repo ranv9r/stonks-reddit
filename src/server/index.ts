@@ -9,6 +9,7 @@ import chatRoutes from './routes/chat';
 import chatTriggerRoutes from './routes/chatTriggers';
 import tourRoutes from './routes/tour';
 import consentRoutes from './routes/consent';
+import ipoRoutes from './routes/ipo';
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.use(consentRoutes);
 app.use(chatRoutes);
 app.use(chatTriggerRoutes);
 app.use(tourRoutes);
+app.use(ipoRoutes);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {

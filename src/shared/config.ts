@@ -108,6 +108,29 @@ export const COOLDOWN_WINDOW_MS = 60000; // 1 minute
 export const COOLDOWN_WINDOW_SECONDS = 60;
 
 // ============================================
+// IPO CONFIGURATION
+// ============================================
+
+/** Cost to subscribe (or propose) an IPO slot (in cents) */
+export const IPO_SUBSCRIPTION_COST = 1000000; // $10,000
+
+/** Total pot needed to list the stock (in cents) */
+export const IPO_POT_TARGET = 10000000; // $100,000
+
+/** Number of subscriber slots per IPO */
+export const IPO_MAX_SUBSCRIBERS = 10;
+
+/** Shares each subscriber receives on listing */
+export const IPO_SHARES_PER_SUB = 100;
+
+/** How long a user must wait before proposing another IPO */
+export const IPO_PROPOSAL_COOLDOWN_MS = 86400000; // 24 hours
+
+/** How long an IPO can stay pending before expiring and refunding */
+export const IPO_EXPIRY_MS = 172800000; // 48 hours
+
+
+// ============================================
 // LEADERBOARD CONFIGURATION
 // ============================================
 
@@ -158,6 +181,18 @@ export const REDIS_KEYS = {
 
     /** Stonk tiered price history sorted sets - use with stonkId and tier (1-5) */
     stonkHistoryTier: (stonkId: string, tier: number) => `stonk:${stonkId}:history${tier}`,
+
+    /** IPO list sorted set (all pending IPOs, score = createdAt) */
+    IPO_LIST: 'ipo:list',
+
+    /** IPO state hash - use with ipoId */
+    ipoState: (ipoId: string) => `ipo:${ipoId}`,
+
+    /** IPO subscribers sorted set - use with ipoId (member=userId, score=timestamp) */
+    ipoSubscribers: (ipoId: string) => `ipo:${ipoId}:subscribers`,
+
+    /** Last IPO proposal timestamp for a user */
+    userLastIpoProposal: (userId: string) => `user:${userId}:lastIpoProposal`,
 } as const;
 
 // ============================================

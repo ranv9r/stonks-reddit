@@ -11,6 +11,7 @@ import * as stressTestService from '../services/stressTestService';
 import * as redisService from '../services/redis';
 import * as stockTickerService from '../services/stockTickerService';
 import * as flairService from '../services/flairService';
+import * as ipoService from '../services/ipoService';
 
 const router = Router();
 
@@ -47,6 +48,9 @@ router.post('/internal/scheduler/price-tick', async (_req, res) => {
         }
 
         // Check if market is active
+        // Always check for expired IPOs, even if market is paused (so users get refunds)
+        ipoService.expireStaleIpos().catch(e => console.error('[Scheduler] IPO expiry check failed:', e));
+
         if (!config.eventActive && !(config.eventStartTime && Date.now() >= config.eventStartTime)) {
             res.status(200).json({ status: 'skipped', reason: 'market paused' });
             return;
