@@ -189,11 +189,12 @@ export async function getComments(
             }
         }
 
-        // Fetch ALL comments from the thread using .all() — this is the only reliable method.
-        // sort/threaded/truncate params are silently stripped by Devvit's wrapper, so we sort & slice ourselves.
+        // Fetch ALL comments — do NOT set `limit` because Devvit silently strips `sort`,
+        // so Reddit returns in default order. With a cap, we'd get a random subset when
+        // threads are large, causing inconsistent "newest" results between calls.
+        // We sort & slice ourselves after fetching everything.
         const commentsListing = await reddit.getComments({
             postId: threadId as `t3_${string}`,
-            limit: 200,
             pageSize: 100,
         });
 
