@@ -9,15 +9,12 @@ import {
     DEFAULT_X_VIRT,
     DEFAULT_Y_VIRT,
     STARTING_BALANCE,
-    IPO_SUBSCRIPTION_COST,
     IPO_POT_TARGET,
     IPO_MAX_SUBSCRIBERS,
-    IPO_SHARES_PER_SUB,
-    IPO_PROPOSAL_COOLDOWN_MS,
-    IPO_EXPIRY_MS,
 } from '../../shared/config';
 import type { IpoState, IpoStatus } from '../../shared/types/stonks';
 import * as redisService from './redis';
+import { createPost } from '../core/post';
 
 // ============================================
 // HELPERS
@@ -100,6 +97,7 @@ export async function createIpo(
     imageUrl?: string,
 ): Promise<{ success: boolean; message: string; ipo?: IpoState }> {
     const tickerUpper = ticker.toUpperCase().trim();
+    const config = await redisService.getIpoConfig();
 
     // 1. Validate ticker format
     if (!/^[A-Z]{1,5}$/.test(tickerUpper)) {
@@ -118,23 +116,26 @@ export async function createIpo(
         return { success: false, message: `An IPO for ${tickerUpper} is already pending.` };
     }
 
-    // 4. Check 24h proposal cooldown
+    // 4. Check proposal cooldown
     const lastProposal = await getLastProposalTime(userId);
-    if (lastProposal && Date.now() - lastProposal < IPO_PROPOSAL_COOLDOWN_MS) {
-        const hoursLeft = Math.ceil((IPO_PROPOSAL_COOLDOWN_MS - (Date.now() - lastProposal)) / 3600000);
+    if (lastProposal && Date.now() - lastProposal < config.proposalCooldownMs) {
+        const hoursLeft = Math.ceil((config.proposalCooldownMs - (Date.now() - lastProposal)) / 3600000);
         return { success: false, message: `You can only propose one IPO per day. Try again in ~${hoursLeft}h.` };
     }
 
-    // 5. Check wallet balance
+    // 5. Check wallet balance — must cover non-refundable creation fee AND subscription
+    const totalRequired = config.creationFee + config.subscriptionCost;
     const user = await redisService.getOrCreateUser(userId, STARTING_BALANCE);
-    if (!user || user.walletBalance < IPO_SUBSCRIPTION_COST) {
-        return { success: false, message: `Insufficient funds. You need $${(IPO_SUBSCRIPTION_COST / 100).toFixed(0)} to propose an IPO.` };
+    if (!user || user.walletBalance < totalRequired) {
+        const needed = (totalRequired / 100).toLocaleString();
+        const has = ((user?.walletBalance ?? 0) / 100).toLocaleString();
+        return { success: false, message: `Insufficient funds. You need $${needed} to propose an IPO ($${(config.creationFee / 100).toLocaleString()} creation fee + $${(config.subscriptionCost / 100).toLocaleString()} subscription). You have $${has}.` };
     }
 
     // 6. Create IPO record
     const now = Date.now();
     const ipoId = `ipo_${tickerUpper}_${now}`;
-    const expiresAt = now + IPO_EXPIRY_MS;
+    const expiresAt = now + config.expiryMs;
     const proposerName = await getProposerName(userId);
 
     const ipo: IpoState = {
@@ -146,15 +147,34 @@ export async function createIpo(
         proposedBy: userId,
         proposerName,
         status: 'pending',
-        totalPot: IPO_SUBSCRIPTION_COST,
-        potTarget: IPO_POT_TARGET,
+        totalPot: config.subscriptionCost,
+        potTarget: config.potTarget,
         subscriberCount: 1,
-        maxSubscribers: IPO_MAX_SUBSCRIBERS,
+        maxSubscribers: config.maxSubscribers,
         createdAt: now,
         expiresAt,
     };
 
-    // 7. Write IPO hash, subscriber set, update list
+    // 7. Debit creation fee (burned — not added to pot, not refunded on expiry)
+    await redisService.updateWalletBalance(userId, -config.creationFee);
+
+    // 8. Create Reddit post — blocking; roll back both fees on failure
+    try {
+        await createPost({
+            ticker: tickerUpper,
+            name: name.trim(),
+            icon: icon || '📈',
+            proposerName,
+            imageUrl,
+        });
+    } catch (error) {
+        console.error('[IPO] Failed to create Reddit post:', error);
+        // Roll back the creation fee since we haven't committed anything to Redis yet
+        await redisService.updateWalletBalance(userId, config.creationFee);
+        return { success: false, message: 'Failed to create the Reddit post for this IPO. Please try again.' };
+    }
+
+    // 9. Write IPO hash, subscriber set, update list
     const hashData: Record<string, string> = {
         id: ipoId,
         name: ipo.name,
@@ -163,10 +183,10 @@ export async function createIpo(
         proposedBy: userId,
         proposerName,
         status: 'pending',
-        totalPot: String(IPO_SUBSCRIPTION_COST),
-        potTarget: String(IPO_POT_TARGET),
+        totalPot: String(config.subscriptionCost),
+        potTarget: String(config.potTarget),
         subscriberCount: '1',
-        maxSubscribers: String(IPO_MAX_SUBSCRIBERS),
+        maxSubscribers: String(config.maxSubscribers),
         createdAt: String(now),
         expiresAt: String(expiresAt),
     };
@@ -176,14 +196,14 @@ export async function createIpo(
     await redis.zAdd(REDIS_KEYS.ipoSubscribers(ipoId), { member: userId, score: now });
     await redis.zAdd(REDIS_KEYS.IPO_LIST, { member: ipoId, score: now });
 
-    // 8. Debit wallet
-    await redisService.updateWalletBalance(userId, -IPO_SUBSCRIPTION_COST);
+    // 10. Debit subscription cost (goes into pot, refunded if IPO expires)
+    await redisService.updateWalletBalance(userId, -config.subscriptionCost);
 
-    // 9. Set proposal cooldown (24h TTL so Redis auto-cleans it)
+    // 11. Set proposal cooldown (TTL so Redis auto-cleans it)
     await redis.set(REDIS_KEYS.userLastIpoProposal(userId), String(now));
-    await redis.expire(REDIS_KEYS.userLastIpoProposal(userId), Math.ceil(IPO_PROPOSAL_COOLDOWN_MS / 1000));
+    await redis.expire(REDIS_KEYS.userLastIpoProposal(userId), Math.ceil(config.proposalCooldownMs / 1000));
 
-    // 10. Broadcast so all clients see new IPO
+    // 12. Broadcast so all clients see new IPO
     await realtime.send('ipo_update', { type: 'new', ipoId, ticker: tickerUpper });
 
     return { success: true, message: `IPO for ${tickerUpper} created! Others can now subscribe.`, ipo };
@@ -197,10 +217,11 @@ export async function subscribeToIpo(
     userId: string,
     ipoId: string,
 ): Promise<{ success: boolean; message: string; listed?: boolean }> {
+    const config = await redisService.getIpoConfig();
     const ipo = await getIpo(ipoId);
     if (!ipo) return { success: false, message: 'IPO not found.' };
     if (ipo.status !== 'pending') return { success: false, message: 'This IPO is no longer open.' };
-    if (ipo.subscriberCount >= ipo.maxSubscribers) return { success: false, message: 'This IPO is already fully subscribed.' };
+    if (ipo.subscriberCount >= config.maxSubscribers) return { success: false, message: 'This IPO is already fully subscribed.' };
     if (Date.now() > ipo.expiresAt) return { success: false, message: 'This IPO has expired.' };
 
     // Check already subscribed
@@ -211,13 +232,13 @@ export async function subscribeToIpo(
 
     // Check wallet
     const user = await redisService.getOrCreateUser(userId, STARTING_BALANCE);
-    if (!user || user.walletBalance < IPO_SUBSCRIPTION_COST) {
-        return { success: false, message: `Insufficient funds. You need $${(IPO_SUBSCRIPTION_COST / 100).toFixed(0)} to subscribe.` };
+    if (!user || user.walletBalance < config.subscriptionCost) {
+        return { success: false, message: `Insufficient funds. You need $${(config.subscriptionCost / 100).toFixed(0)} to subscribe.` };
     }
 
     const now = Date.now();
     const newSubscriberCount = ipo.subscriberCount + 1;
-    const newTotalPot = ipo.totalPot + IPO_SUBSCRIPTION_COST;
+    const newTotalPot = ipo.totalPot + config.subscriptionCost;
 
     // Add subscriber and update state
     await redis.zAdd(REDIS_KEYS.ipoSubscribers(ipoId), { member: userId, score: now });
@@ -227,7 +248,7 @@ export async function subscribeToIpo(
     });
 
     // Debit wallet
-    await redisService.updateWalletBalance(userId, -IPO_SUBSCRIPTION_COST);
+    await redisService.updateWalletBalance(userId, -config.subscriptionCost);
 
     // Broadcast progress update
     await realtime.send('ipo_update', {
@@ -238,7 +259,7 @@ export async function subscribeToIpo(
     });
 
     // If pot is full — list the stock!
-    if (newSubscriberCount >= ipo.maxSubscribers) {
+    if (newSubscriberCount >= config.maxSubscribers) {
         await listIpo(ipo);
         return { success: true, message: `🚀 The pot is full! ${ipo.ticker} is now live on the market!`, listed: true };
     }
@@ -256,10 +277,12 @@ export async function subscribeToIpo(
 // ============================================
 
 async function listIpo(ipo: IpoState): Promise<void> {
-    // Inject $100K pot as xReal so price = (xVirt + xReal) / yVirt = $110
+    const config = await redisService.getIpoConfig();
+
+    // Inject the targeted pot as xReal so price = (xVirt + xReal) / yVirt
     const xVirt = DEFAULT_X_VIRT;
     const yVirt = DEFAULT_Y_VIRT;
-    const xReal = IPO_POT_TARGET; // $100K injected — price = 110M/10000 = $110
+    const xReal = config.potTarget; // Inject dynamic pot target
 
     // Create the stock with boosted reserves
     await redisService.createStonk(
@@ -281,7 +304,7 @@ async function listIpo(ipo: IpoState): Promise<void> {
         basePrice: String(listingPrice),
     });
 
-    // Distribute 100 shares to each subscriber
+    // Distribute shares to each subscriber
     const subEntries = await redis.zRange(REDIS_KEYS.ipoSubscribers(ipo.id), 0, -1, { by: 'rank' });
     const subUserIds = subEntries.map(e => e.member);
 
@@ -292,11 +315,11 @@ async function listIpo(ipo: IpoState): Promise<void> {
         const updatedPortfolio = { ...user.portfolio };
         const existing = updatedPortfolio[ipo.ticker];
         if (existing) {
-            const totalQty = existing.qty + IPO_SHARES_PER_SUB;
-            const totalCost = existing.qty * existing.avgPrice + IPO_SHARES_PER_SUB * listingPrice;
+            const totalQty = existing.qty + config.sharesPerSub;
+            const totalCost = existing.qty * existing.avgPrice + config.sharesPerSub * listingPrice;
             updatedPortfolio[ipo.ticker] = { qty: totalQty, avgPrice: totalCost / totalQty };
         } else {
-            updatedPortfolio[ipo.ticker] = { qty: IPO_SHARES_PER_SUB, avgPrice: listingPrice };
+            updatedPortfolio[ipo.ticker] = { qty: config.sharesPerSub, avgPrice: listingPrice };
         }
 
         await redisService.atomicUpdateUserTrade(uid, 0, updatedPortfolio, user.walletBalance);
@@ -322,17 +345,18 @@ async function listIpo(ipo: IpoState): Promise<void> {
 // ============================================
 
 export async function expireStaleIpos(): Promise<void> {
+    const config = await redisService.getIpoConfig();
     const now = Date.now();
     const pendingIpos = await getAllPendingIpos();
 
     for (const ipo of pendingIpos) {
         if (now < ipo.expiresAt) continue;
 
-        // Refund all subscribers
+        // Refund all subscribers (only subscription cost, not creation fee)
         const subEntries = await redis.zRange(REDIS_KEYS.ipoSubscribers(ipo.id), 0, -1, { by: 'rank' });
         const subUserIds = subEntries.map(e => e.member);
 
-        await Promise.all(subUserIds.map(uid => redisService.updateWalletBalance(uid, IPO_SUBSCRIPTION_COST)));
+        await Promise.all(subUserIds.map(uid => redisService.updateWalletBalance(uid, config.subscriptionCost)));
 
         // Mark expired
         await redis.hSet(REDIS_KEYS.ipoState(ipo.id), { status: 'expired' });

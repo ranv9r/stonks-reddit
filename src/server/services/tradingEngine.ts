@@ -102,11 +102,16 @@ export async function executeBuy(
         return { success: false, message: 'Insufficient funds or spend limit reached.' };
     }
 
-    // --- INSTANT EXECUTION (Fixed Price) ---
+    // --- INSTANT EXECUTION (Fair Price Calculation) ---
 
-    // 5. Calculate result using CURRENT price (No slippage for user)
-    const currentPrice = stonk.currentPrice;
-    const stockDistributed = actualAmount / currentPrice;
+    // 5. Calculate fair shares using post-impact price to prevent free profit
+    const ammState = {
+        xVirt: stonk.xVirt,
+        yVirt: stonk.yVirt,
+        xReal: stonk.xReal,
+        yReal: stonk.yReal,
+    };
+    const { estimatedShares: stockDistributed, postBuyPrice } = ammEngine.estimateBuy(ammState, actualAmount);
 
     // 6. Add to Batch (direct Redis write for reliability)
     await redisService.addBuyVolume(stonk.id, actualAmount);
@@ -128,7 +133,7 @@ export async function executeBuy(
         // New holding
         updatedPortfolio[stonkId] = {
             qty: stockDistributed,
-            avgPrice: currentPrice // User bought at current price
+            avgPrice: postBuyPrice // User's cost basis is at their impact price
         };
     }
 

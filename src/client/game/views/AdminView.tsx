@@ -16,6 +16,11 @@ export const AdminView = () => {
     const [walletUsername, setWalletUsername] = useState('');
     const [walletAmount, setWalletAmount] = useState('');
     const [walletMessage, setWalletMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+    // IPO Config State
+    const [ipoConfig, setIpoConfig] = useState<any>(null);
+    const [ipoExpanded, setIpoExpanded] = useState(false);
+
     // const [deleteTicker, setDeleteTicker] = useState(''); // Ghost stock cleanup — disabled for now
 
     // Fetch all stocks
@@ -43,6 +48,14 @@ export const AdminView = () => {
             .then(res => res.json())
             .then(data => setFlairsEnabled(data.flairsEnabled || false))
             .catch(err => console.error('Failed to fetch flair status:', err));
+
+        // Fetch IPO config
+        fetch('/api/mod/config/ipo')
+            .then(res => res.json())
+            .then(data => {
+                if (!data.error) setIpoConfig(data);
+            })
+            .catch(err => console.error('Failed to fetch IPO config:', err));
     }, [fetchStocks]);
 
     // Create new stock using Devvit form
@@ -284,6 +297,30 @@ export const AdminView = () => {
         }
     };
 
+    /** Saves IPO Settings */
+    const handleSaveIpoConfig = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            setActionLoading(true);
+            const response = await fetch('/api/mod/config/ipo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(ipoConfig),
+            });
+            const data = await response.json();
+            if (data.success) {
+                alert('✅ IPO Configuration saved successfully!');
+                setIpoConfig(data.config);
+            } else {
+                setError(data.error || 'Failed to save IPO configuration');
+            }
+        } catch (err) {
+            setError(`Error saving IPO config: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     return (
         <div className="px-4 py-4 sm:px-6 sm:py-6 space-y-6 fade-in mx-2">
             {/* Header */}
@@ -504,6 +541,103 @@ export const AdminView = () => {
                         }`}>
                         {walletMessage.text}
                     </div>
+                )}
+            </div>
+
+            {/* IPO Configuration */}
+            <div className="bg-[#18181b] rounded-xl border border-[#27272a] p-4">
+                <button 
+                    onClick={() => setIpoExpanded(!ipoExpanded)}
+                    className="flex justify-between items-center w-full focus:outline-none"
+                >
+                    <h3 className="font-semibold text-white">⚙️ IPO Configuration</h3>
+                    <span className="text-[#a1a1aa]">{ipoExpanded ? '▼' : '▶'}</span>
+                </button>
+                {ipoExpanded && ipoConfig && (
+                    <form onSubmit={handleSaveIpoConfig} className="mt-4 space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm text-[#a1a1aa] mb-1">Creation Fee (cents)</label>
+                                <input
+                                    type="number"
+                                    value={ipoConfig.creationFee}
+                                    onChange={(e) => setIpoConfig({...ipoConfig, creationFee: Number(e.target.value)})}
+                                    className="w-full px-3 py-2 bg-[#27272a] border border-[#3f3f46] rounded-lg text-white text-sm focus:outline-none focus:border-[#FF4500]/50"
+                                />
+                                <p className="text-xs text-[#71717a] mt-1">Cost to propose ($10M cents = $100,000)</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm text-[#a1a1aa] mb-1">Subscription Cost (cents)</label>
+                                <input
+                                    type="number"
+                                    value={ipoConfig.subscriptionCost}
+                                    onChange={(e) => setIpoConfig({...ipoConfig, subscriptionCost: Number(e.target.value)})}
+                                    className="w-full px-3 py-2 bg-[#27272a] border border-[#3f3f46] rounded-lg text-white text-sm focus:outline-none focus:border-[#FF4500]/50"
+                                />
+                                <p className="text-xs text-[#71717a] mt-1">Cost per slot ($1M cents = $10,000)</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm text-[#a1a1aa] mb-1">Pot Target (cents)</label>
+                                <input
+                                    type="number"
+                                    value={ipoConfig.potTarget}
+                                    onChange={(e) => setIpoConfig({...ipoConfig, potTarget: Number(e.target.value)})}
+                                    className="w-full px-3 py-2 bg-[#27272a] border border-[#3f3f46] rounded-lg text-white text-sm focus:outline-none focus:border-[#FF4500]/50"
+                                />
+                                <p className="text-xs text-[#71717a] mt-1">Starting xReal liquidity ($10M cents = $100,000)</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm text-[#a1a1aa] mb-1">Max Subscribers</label>
+                                <input
+                                    type="number"
+                                    value={ipoConfig.maxSubscribers}
+                                    onChange={(e) => setIpoConfig({...ipoConfig, maxSubscribers: Number(e.target.value)})}
+                                    className="w-full px-3 py-2 bg-[#27272a] border border-[#3f3f46] rounded-lg text-white text-sm focus:outline-none focus:border-[#FF4500]/50"
+                                />
+                                <p className="text-xs text-[#71717a] mt-1">Slots needed to list (e.g. 10)</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm text-[#a1a1aa] mb-1">Shares Per Sub</label>
+                                <input
+                                    type="number"
+                                    value={ipoConfig.sharesPerSub}
+                                    onChange={(e) => setIpoConfig({...ipoConfig, sharesPerSub: Number(e.target.value)})}
+                                    className="w-full px-3 py-2 bg-[#27272a] border border-[#3f3f46] rounded-lg text-white text-sm focus:outline-none focus:border-[#FF4500]/50"
+                                />
+                                <p className="text-xs text-[#71717a] mt-1">Shares awarded per slot</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm text-[#a1a1aa] mb-1">Proposal Cooldown (ms)</label>
+                                <input
+                                    type="number"
+                                    value={ipoConfig.proposalCooldownMs}
+                                    onChange={(e) => setIpoConfig({...ipoConfig, proposalCooldownMs: Number(e.target.value)})}
+                                    className="w-full px-3 py-2 bg-[#27272a] border border-[#3f3f46] rounded-lg text-white text-sm focus:outline-none focus:border-[#FF4500]/50"
+                                />
+                                <p className="text-xs text-[#71717a] mt-1">Wait between proposals</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm text-[#a1a1aa] mb-1">Expiry Time (ms)</label>
+                                <input
+                                    type="number"
+                                    value={ipoConfig.expiryMs}
+                                    onChange={(e) => setIpoConfig({...ipoConfig, expiryMs: Number(e.target.value)})}
+                                    className="w-full px-3 py-2 bg-[#27272a] border border-[#3f3f46] rounded-lg text-white text-sm focus:outline-none focus:border-[#FF4500]/50"
+                                />
+                                <p className="text-xs text-[#71717a] mt-1">Time before open IPO expires</p>
+                            </div>
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={actionLoading}
+                            className="px-4 py-2 mt-2 bg-[#FF4500] hover:bg-[#ff5722] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                        >
+                            Save Settings
+                        </button>
+                    </form>
+                )}
+                {ipoExpanded && !ipoConfig && (
+                    <div className="mt-4 text-sm text-[#71717a]">Loading configuration...</div>
                 )}
             </div>
 

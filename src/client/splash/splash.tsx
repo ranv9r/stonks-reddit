@@ -49,6 +49,9 @@ interface PortfolioData {
  * Portfolio updates in sync with global_ticker realtime channel (same as game).
  */
 export const Splash = () => {
+  const postData = context.postData as Record<string, string> | undefined;
+  const isIpoPost = postData?.type === 'ipo';
+
   const [stonks, setStonks] = useState<StonkPreview[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
   const [isMarketOpen, setIsMarketOpen] = useState(true);
@@ -342,6 +345,58 @@ export const Splash = () => {
 
   const netWorth = portfolio ? (portfolio.walletBalance + portfolio.totalValue) / 100 : 0;
 
+  // Render the IPO Splash if this is an IPO post
+  if (isIpoPost && postData) {
+    return (
+      <div className="splash-container">
+        <div className="splash-inner" style={{ flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '2rem' }}>
+          <div className="splash-logo" style={{ marginBottom: '1rem' }}>
+            <div className="logo-row">
+              <LogoChartIcon size={48} className="logo-icon" />
+              <span className="logo-stonks" style={{ fontSize: '3rem' }}>Stonks</span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(24, 24, 27, 0.8)', padding: '2rem 4rem', borderRadius: '24px', border: '1px solid rgba(255, 69, 0, 0.3)', boxShadow: '0 0 40px rgba(255, 69, 0, 0.1)' }}>
+            <div style={{ fontSize: '1.5rem', color: '#FF4500', fontWeight: 'bold', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '1.5rem' }}>
+              New IPO Proposal
+            </div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1rem' }}>
+              {postData.imageUrl ? (
+                <img src={postData.imageUrl} alt={postData.ticker} style={{ width: '80px', height: '80px', borderRadius: '50%', border: '2px solid rgba(255, 255, 255, 0.1)', objectFit: 'cover' }} />
+              ) : (
+                <span style={{ fontSize: '4rem' }}>{postData.icon || '📈'}</span>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div style={{ fontSize: '3.5rem', fontWeight: 900, lineHeight: 1, letterSpacing: '-1px' }}>{postData.ticker}</div>
+                <div style={{ fontSize: '1.2rem', color: '#a1a1aa', marginTop: '4px' }}>{postData.name}</div>
+              </div>
+            </div>
+
+            {postData.proposerName && (
+              <div style={{ fontSize: '1rem', color: '#a1a1aa', marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                Proposed by <span style={{ color: 'white', fontWeight: 600 }}>u/{postData.proposerName}</span>
+              </div>
+            )}
+            
+            <button
+              className="splash-cta"
+              style={{ marginTop: '2.5rem', padding: '1rem 3rem', fontSize: '1.2rem' }}
+              onClick={(e) => {
+                localStorage.setItem('openIpoTicker', postData.ticker || '');
+                requestExpandedMode(e.nativeEvent, 'game');
+              }}
+            >
+              Apply / Subscribe
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // STANDARD SPLASH SCREEN
   return (
     <div className="splash-container">
       <div className="splash-inner">

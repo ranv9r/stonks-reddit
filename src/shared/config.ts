@@ -129,6 +129,12 @@ export const IPO_PROPOSAL_COOLDOWN_MS = 86400000; // 24 hours
 /** How long an IPO can stay pending before expiring and refunding */
 export const IPO_EXPIRY_MS = 172800000; // 48 hours
 
+/**
+ * One-time non-refundable fee to propose an IPO (in cents).
+ * Burned immediately on proposal — NOT added to the pot, NOT refunded on expiry.
+ */
+export const IPO_CREATION_FEE = 10000000; // $100,000
+
 
 // ============================================
 // LEADERBOARD CONFIGURATION
@@ -193,6 +199,9 @@ export const REDIS_KEYS = {
 
     /** Last IPO proposal timestamp for a user */
     userLastIpoProposal: (userId: string) => `user:${userId}:lastIpoProposal`,
+
+    /** IPO configuration hash */
+    IPO_CONFIG: 'ipo:config',
 } as const;
 
 // ============================================

@@ -16,6 +16,13 @@ import {
     DEFAULT_BASE_PRICE,
     USER_SPEND_LIMIT,
     COOLDOWN_WINDOW_SECONDS,
+    IPO_CREATION_FEE,
+    IPO_SUBSCRIPTION_COST,
+    IPO_POT_TARGET,
+    IPO_MAX_SUBSCRIBERS,
+    IPO_PROPOSAL_COOLDOWN_MS,
+    IPO_EXPIRY_MS,
+    IPO_SHARES_PER_SUB
 } from '../../shared/config';
 import type {
     StonkState,
@@ -25,6 +32,7 @@ import type {
     GameConfig,
     SpendLimitResult,
     AMMState,
+    IpoConfig,
 } from '../../shared/types/stonks';
 
 // ============================================
@@ -728,6 +736,46 @@ export async function setGameConfig(config: Partial<GameConfig>): Promise<void> 
 
     if (Object.keys(updates).length > 0) {
         await redis.hSet(REDIS_KEYS.GAME_CONFIG, updates);
+    }
+}
+
+// ============================================
+// IPO CONFIG OPERATIONS
+// ============================================
+
+/**
+ * Gets the IPO configuration, falling back to defaults if not set.
+ */
+export async function getIpoConfig(): Promise<IpoConfig> {
+    const data = await redis.hGetAll(REDIS_KEYS.IPO_CONFIG);
+
+    return {
+        creationFee: data?.creationFee ? parseInt(data.creationFee) : IPO_CREATION_FEE,
+        subscriptionCost: data?.subscriptionCost ? parseInt(data.subscriptionCost) : IPO_SUBSCRIPTION_COST,
+        potTarget: data?.potTarget ? parseInt(data.potTarget) : IPO_POT_TARGET,
+        maxSubscribers: data?.maxSubscribers ? parseInt(data.maxSubscribers) : IPO_MAX_SUBSCRIBERS,
+        proposalCooldownMs: data?.proposalCooldownMs ? parseInt(data.proposalCooldownMs) : IPO_PROPOSAL_COOLDOWN_MS,
+        expiryMs: data?.expiryMs ? parseInt(data.expiryMs) : IPO_EXPIRY_MS,
+        sharesPerSub: data?.sharesPerSub ? parseInt(data.sharesPerSub) : IPO_SHARES_PER_SUB,
+    };
+}
+
+/**
+ * Sets the IPO configuration.
+ */
+export async function setIpoConfig(config: Partial<IpoConfig>): Promise<void> {
+    const updates: Record<string, string> = {};
+
+    if (config.creationFee !== undefined) updates.creationFee = String(config.creationFee);
+    if (config.subscriptionCost !== undefined) updates.subscriptionCost = String(config.subscriptionCost);
+    if (config.potTarget !== undefined) updates.potTarget = String(config.potTarget);
+    if (config.maxSubscribers !== undefined) updates.maxSubscribers = String(config.maxSubscribers);
+    if (config.proposalCooldownMs !== undefined) updates.proposalCooldownMs = String(config.proposalCooldownMs);
+    if (config.expiryMs !== undefined) updates.expiryMs = String(config.expiryMs);
+    if (config.sharesPerSub !== undefined) updates.sharesPerSub = String(config.sharesPerSub);
+
+    if (Object.keys(updates).length > 0) {
+        await redis.hSet(REDIS_KEYS.IPO_CONFIG, updates);
     }
 }
 

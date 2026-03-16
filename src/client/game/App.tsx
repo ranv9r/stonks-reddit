@@ -84,6 +84,13 @@ export const App = () => {
         setSelectedStonkId(stonkId);
         setCurrentView('detail');
       }
+
+      const ipoTicker = localStorage.getItem('openIpoTicker');
+      if (ipoTicker) {
+        console.log('[App] Found openIpoTicker:', ipoTicker);
+        localStorage.removeItem('openIpoTicker');
+        setCurrentView('ipo');
+      }
     };
 
     // Check on mount

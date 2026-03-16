@@ -232,21 +232,30 @@ export function resolveBatch(
 export function estimateBuy(
     state: AMMState,
     cashAmount: number
-): { estimatedShares: number; estimatedPrice: number; priceImpact: number } {
+): { estimatedShares: number; estimatedPrice: number; postBuyPrice: number; priceImpact: number } {
     const currentPrice = getSpotPrice(state);
     const { xTotal, yTotal } = getTotals(state);
     const k = xTotal * yTotal;
 
     const newXTotal = xTotal + cashAmount;
     const newYTotal = k / newXTotal;
-    const sharesOut = yTotal - newYTotal;
 
-    const estimatedPrice = sharesOut > 0 ? cashAmount / sharesOut : currentPrice;
-    const priceImpact = ((estimatedPrice - currentPrice) / currentPrice) * 100;
+    // Use exact floating-point post-buy price (no rounding here).
+    // Then ceil fairShares so shares × postBuyPrice is always >= cashAmount.
+    const exactPostBuyPrice = newXTotal / newYTotal;
+    const postBuyPrice = Math.max(Math.round(exactPostBuyPrice), MIN_PRICE);
+
+    // Ceil at 6 decimal places: guarantees the user's portfolio value at postBuyPrice
+    // is always >= their investment. The extra is at most ~$0.0001 — negligible.
+    const rawShares = cashAmount / exactPostBuyPrice;
+    const fairShares = Math.ceil(rawShares * 1_000_000) / 1_000_000;
+
+    const priceImpact = ((postBuyPrice - currentPrice) / currentPrice) * 100;
 
     return {
-        estimatedShares: sharesOut,
-        estimatedPrice: Math.round(estimatedPrice),
+        estimatedShares: fairShares,
+        estimatedPrice: postBuyPrice,
+        postBuyPrice,
         priceImpact,
     };
 }

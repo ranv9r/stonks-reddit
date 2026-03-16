@@ -28,11 +28,13 @@ router.get('/api/config', async (_req, res) => {
     try {
         const { subredditName } = context;
         const config = await redisService.getGameConfig();
+        const ipoConfig = await redisService.getIpoConfig();
         res.json({
             subredditName: subredditName || 'Stonks',
             eventActive: config.eventActive,
             eventLocked: config.eventLocked,
-            eventStartTime: config.eventStartTime
+            eventStartTime: config.eventStartTime,
+            ipoConfig
         });
     } catch (error) {
         console.error('[Config API] Error:', error);

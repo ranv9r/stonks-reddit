@@ -880,5 +880,74 @@ router.post('/api/mod/add-wallet', async (req, res) => {
     }
 });
 
-export default router;
+// ============================================
+// ADMIN IPO CONFIG MANAGEMENT
+// ============================================
 
+/**
+ * GET /api/mod/config/ipo
+ * Retrieve the current IPO configuration
+ */
+router.get('/api/mod/config/ipo', async (_req, res) => {
+    try {
+        const { userId } = context;
+        if (!userId) {
+            res.status(401).json({ error: 'Must be logged in' });
+            return;
+        }
+
+        const isMod = await isCurrentUserModerator();
+        if (!isMod) {
+            res.status(403).json({ error: 'Moderator access required' });
+            return;
+        }
+
+        const ipoConfig = await redisService.getIpoConfig();
+        res.json(ipoConfig);
+    } catch (error) {
+        console.error('[Get IPO Config] Error:', error);
+        res.status(500).json({ error: 'Failed to fetch IPO config' });
+    }
+});
+
+/**
+ * POST /api/mod/config/ipo
+ * Update the IPO configuration
+ */
+router.post('/api/mod/config/ipo', async (req, res) => {
+    try {
+        const { userId } = context;
+        if (!userId) {
+            res.status(401).json({ error: 'Must be logged in' });
+            return;
+        }
+
+        const isMod = await isCurrentUserModerator();
+        if (!isMod) {
+            res.status(403).json({ error: 'Moderator access required' });
+            return;
+        }
+
+        // Validate basic payload shape
+        const updates = req.body;
+        if (!updates || typeof updates !== 'object') {
+            res.status(400).json({ error: 'Invalid configuration payload' });
+            return;
+        }
+
+        await redisService.setIpoConfig(updates);
+        const updatedConfig = await redisService.getIpoConfig();
+        console.log(`[Update IPO Config] ⚙️ Updated by ${userId}:`, updatedConfig);
+
+        res.json({
+            success: true,
+            message: 'IPO configuration updated successfully',
+            config: updatedConfig,
+        });
+    } catch (error) {
+        console.error('[Update IPO Config] Error:', error);
+        res.status(500).json({ error: 'Failed to update IPO config' });
+    }
+});
+
+export default router;

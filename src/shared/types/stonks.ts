@@ -288,3 +288,14 @@ export interface IpoListResponse {
     canPropose: boolean;          // false if user is on 24h cooldown or insufficient balance
     nextProposalAt: number | null; // timestamp when user can propose again
 }
+
+/** Configurable IPO Settings for Mod Panel */
+export interface IpoConfig {
+    creationFee: number;
+    subscriptionCost: number;
+    potTarget: number;
+    maxSubscribers: number;
+    proposalCooldownMs: number;
+    expiryMs: number;
+    sharesPerSub: number;
+}
