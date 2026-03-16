@@ -306,6 +306,13 @@ export const IpoView = () => {
     useEffect(() => {
         fetchIpos();
 
+        // Check for deep-linked ticker from splash
+        const ticker = localStorage.getItem('openIpoTicker');
+        if (ticker) {
+            console.log('[IpoView] Deep-link ticker found:', ticker);
+            // We'll highlight it once data loads
+        }
+
         // Subscribe to realtime IPO updates
         const setup = async () => {
             try {
@@ -420,15 +427,26 @@ export const IpoView = () => {
                 </div>
             ) : (
                 <div className="flex flex-col gap-4">
-                    {ipos.map(ipo => (
-                        <IpoCard
-                            key={ipo.id}
-                            ipo={ipo}
-                            isSubscribed={userSubscriptions.includes(ipo.id)}
-                            onSubscribe={handleSubscribe}
-                            subscribing={subscribing}
-                        />
-                    ))}
+                    {ipos.map(ipo => {
+                        const isHighlighted = ipo.ticker === localStorage.getItem('openIpoTicker');
+                        return (
+                            <div key={ipo.id} ref={isHighlighted ? (el) => {
+                                if (el) {
+                                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    localStorage.removeItem('openIpoTicker'); // Clear after use
+                                }
+                            } : undefined}
+                                className={isHighlighted ? 'ring-2 ring-orange-500 rounded-2xl shadow-[0_0_30px_rgba(255,69,0,0.3)] scale-[1.02] transform transition-all duration-1000' : ''}
+                            >
+                                <IpoCard
+                                    ipo={ipo}
+                                    isSubscribed={userSubscriptions.includes(ipo.id)}
+                                    onSubscribe={handleSubscribe}
+                                    subscribing={subscribing}
+                                />
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 

@@ -6,7 +6,7 @@ import { Router } from 'express';
 import { context } from '@devvit/web/server';
 import * as ipoService from '../services/ipoService';
 import * as redisService from '../services/redis';
-import { STARTING_BALANCE, IPO_SUBSCRIPTION_COST } from '../../shared/config';
+import { STARTING_BALANCE, IPO_SUBSCRIPTION_COST, IPO_PROPOSAL_COOLDOWN_MS } from '../../shared/config';
 
 const router = Router();
 
@@ -28,7 +28,7 @@ router.get('/api/ipos', async (_req, res) => {
         if (userId) {
             const user = await redisService.getOrCreateUser(userId, STARTING_BALANCE);
             const lastProposal = await ipoService.getLastProposalTime(userId);
-            const cooldownMs = 86400000; // 24h
+            const cooldownMs = IPO_PROPOSAL_COOLDOWN_MS;
             if (lastProposal && Date.now() - lastProposal < cooldownMs) {
                 nextProposalAt = lastProposal + cooldownMs;
                 canPropose = false;

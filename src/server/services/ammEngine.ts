@@ -234,27 +234,23 @@ export function estimateBuy(
     cashAmount: number
 ): { estimatedShares: number; estimatedPrice: number; postBuyPrice: number; priceImpact: number } {
     const currentPrice = getSpotPrice(state);
-    const { xTotal, yTotal } = getTotals(state);
-    const k = xTotal * yTotal;
+    
+    // Simulate the exact batch execution to get accurate post-impact state & price
+    // This perfectly accounts for dynamic liquidity scaling (LIQUIDITY_SCALE_ALPHA)
+    const buyResult = executeBuyBatch(state, cashAmount);
+    const postBuyPrice = getSpotPrice(buyResult.newState);
 
-    const newXTotal = xTotal + cashAmount;
-    const newYTotal = k / newXTotal;
+    // Fair shares: portfolio value at post-buy price = amount invested
+    // This nullifies instant profit from driving up the price
+    const fairShares = cashAmount / postBuyPrice;
 
-    // Use exact floating-point post-buy price (no rounding here).
-    // Then ceil fairShares so shares × postBuyPrice is always >= cashAmount.
-    const exactPostBuyPrice = newXTotal / newYTotal;
-    const postBuyPrice = Math.max(Math.round(exactPostBuyPrice), MIN_PRICE);
-
-    // Ceil at 6 decimal places: guarantees the user's portfolio value at postBuyPrice
-    // is always >= their investment. The extra is at most ~$0.0001 — negligible.
-    const rawShares = cashAmount / exactPostBuyPrice;
-    const fairShares = Math.ceil(rawShares * 1_000_000) / 1_000_000;
-
+    // The estimated price is essentially the postBuyPrice
+    const estimatedPrice = cashAmount / fairShares;
     const priceImpact = ((postBuyPrice - currentPrice) / currentPrice) * 100;
 
     return {
         estimatedShares: fairShares,
-        estimatedPrice: postBuyPrice,
+        estimatedPrice: Math.round(estimatedPrice),
         postBuyPrice,
         priceImpact,
     };
@@ -268,15 +264,14 @@ export function estimateSell(
     shareAmount: number
 ): { estimatedCash: number; estimatedPrice: number; priceImpact: number } {
     const currentPrice = getSpotPrice(state);
-    const { xTotal, yTotal } = getTotals(state);
-    const k = xTotal * yTotal;
-
-    const newYTotal = yTotal + shareAmount;
-    const newXTotal = k / newYTotal;
-    const cashOut = xTotal - newXTotal;
+    
+    // Simulate the exact batch execution to get accurate post-impact state & price
+    const sellResult = executeSellBatch(state, shareAmount);
+    const postSellPrice = getSpotPrice(sellResult.newState);
+    const cashOut = sellResult.cashPaidOut;
 
     const estimatedPrice = shareAmount > 0 ? cashOut / shareAmount : currentPrice;
-    const priceImpact = ((estimatedPrice - currentPrice) / currentPrice) * 100;
+    const priceImpact = ((postSellPrice - currentPrice) / currentPrice) * 100;
 
     return {
         estimatedCash: Math.round(cashOut),

@@ -349,47 +349,101 @@ export const Splash = () => {
   if (isIpoPost && postData) {
     return (
       <div className="splash-container">
-        <div className="splash-inner" style={{ flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '2rem' }}>
-          <div className="splash-logo" style={{ marginBottom: '1rem' }}>
-            <div className="logo-row">
-              <LogoChartIcon size={48} className="logo-icon" />
-              <span className="logo-stonks" style={{ fontSize: '3rem' }}>Stonks</span>
+        <div className="splash-inner">
+          <div className="splash-left">
+            <div className="splash-logo">
+              <div className="logo-row">
+                <LogoChartIcon size={36} className="logo-icon" />
+                <span className="logo-stonks">Stonks</span>
+              </div>
+            </div>
+
+            <div className="splash-networth">
+              <div className="networth-label" style={{ color: '#FF4500', fontWeight: 'bold', letterSpacing: '1px' }}>NEW IPO PROPOSAL</div>
+              <div className="networth-value" style={{ fontSize: '2.5rem' }}>{postData.ticker}</div>
+              <div className="networth-subtitle">Seeking Initial Funding</div>
+            </div>
+
+            <div className="splash-mascot-area">
+              <div className="mascot-arrow">
+                <span style={{ color: '#f59e0b' }}><LogoChartIcon size={140} className="trend-arrow-icon" /></span>
+              </div>
+              <img src={stonksGuy} alt="Stonks" className="stonks-guy-image" />
+              <button
+                className="splash-cta"
+                onClick={(e) => {
+                  console.log('[Splash] Setting openIpoTicker:', postData.ticker);
+                  localStorage.setItem('openIpoTicker', postData.ticker || '');
+                  localStorage.setItem('initialView', 'ipo');
+                  requestExpandedMode(e.nativeEvent, 'game');
+                }}
+              >
+                Apply / Subscribe
+              </button>
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(24, 24, 27, 0.8)', padding: '2rem 4rem', borderRadius: '24px', border: '1px solid rgba(255, 69, 0, 0.3)', boxShadow: '0 0 40px rgba(255, 69, 0, 0.1)' }}>
-            <div style={{ fontSize: '1.5rem', color: '#FF4500', fontWeight: 'bold', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '1.5rem' }}>
-              New IPO Proposal
-            </div>
-            
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1rem' }}>
+          <div className="splash-right" style={{ justifyContent: 'center' }}>
+            <div style={{
+              background: 'rgba(24, 24, 27, 0.8)',
+              padding: '2.5rem',
+              borderRadius: '24px',
+              border: '1px solid rgba(255, 69, 0, 0.3)',
+              boxShadow: '0 0 40px rgba(255, 69, 0, 0.1)',
+              backdropFilter: 'blur(12px)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textAlign: 'center',
+              gap: '1.5rem'
+            }}>
               {postData.imageUrl ? (
-                <img src={postData.imageUrl} alt={postData.ticker} style={{ width: '80px', height: '80px', borderRadius: '50%', border: '2px solid rgba(255, 255, 255, 0.1)', objectFit: 'cover' }} />
+                <img src={postData.imageUrl} alt={postData.ticker} style={{ width: '120px', height: '120px', borderRadius: '24px', border: '3px solid rgba(255, 69, 0, 0.2)', objectFit: 'cover' }} />
               ) : (
-                <span style={{ fontSize: '4rem' }}>{postData.icon || '📈'}</span>
+                <div style={{ fontSize: '5rem', background: 'rgba(255,255,255,0.05)', width: '120px', height: '120px', display: 'flex', alignItems: 'center', justifyItems: 'center', borderRadius: '24px' }}>
+                  {postData.icon || '📈'}
+                </div>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={{ fontSize: '3.5rem', fontWeight: 900, lineHeight: 1, letterSpacing: '-1px' }}>{postData.ticker}</div>
-                <div style={{ fontSize: '1.2rem', color: '#a1a1aa', marginTop: '4px' }}>{postData.name}</div>
-              </div>
-            </div>
 
-            {postData.proposerName && (
-              <div style={{ fontSize: '1rem', color: '#a1a1aa', marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                Proposed by <span style={{ color: 'white', fontWeight: 600 }}>u/{postData.proposerName}</span>
+              <div>
+                <div style={{ fontSize: '1.2rem', color: '#a1a1aa', fontWeight: 500 }}>{postData.name}</div>
+                <div style={{ fontSize: '4rem', fontWeight: 900, lineHeight: 1, color: 'white' }}>{postData.ticker}</div>
               </div>
-            )}
-            
-            <button
-              className="splash-cta"
-              style={{ marginTop: '2.5rem', padding: '1rem 3rem', fontSize: '1.2rem' }}
-              onClick={(e) => {
-                localStorage.setItem('openIpoTicker', postData.ticker || '');
-                requestExpandedMode(e.nativeEvent, 'game');
-              }}
-            >
-              Apply / Subscribe
-            </button>
+
+              {/* Progress UI */}
+              <div style={{ width: '100%', maxWidth: '300px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#a1a1aa' }}>
+                  <span>Subscription Progress</span>
+                  <span style={{ color: '#FF4500', fontWeight: 'bold' }}>
+                    {postData.subscriberCount ?? 0} / {postData.maxSubscribers ?? 1}
+                  </span>
+                </div>
+                <div style={{ 
+                  height: '10px', 
+                  background: 'rgba(255, 255, 255, 0.1)', 
+                  borderRadius: '5px', 
+                  overflow: 'hidden',
+                  border: '1px solid rgba(255,255,255,0.05)'
+                }}>
+                  <div style={{ 
+                    height: '100%', 
+                    width: `${Math.min(((Number(postData.subscriberCount) || 0) / (Number(postData.maxSubscribers) || 1)) * 100, 100)}%`, 
+                    background: 'linear-gradient(90deg, #ff4500, #ff8c00)',
+                    boxShadow: '0 0 10px rgba(255,69,0,0.5)',
+                    transition: 'width 0.5s ease-out'
+                  }} />
+                </div>
+                <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#71717a' }}>
+                  {(Number(postData.maxSubscribers) || 1) - (Number(postData.subscriberCount) || 0)} slots remaining
+                </div>
+              </div>
+
+              {postData.proposerName && (
+                <div style={{ fontSize: '1.1rem', color: '#71717a', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem', width: '100%' }}>
+                  Proposed by <span style={{ color: '#FF4500', fontWeight: 600 }}>u/{postData.proposerName}</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

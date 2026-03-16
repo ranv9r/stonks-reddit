@@ -21,7 +21,7 @@ export const PRICE_TICK_CRON = '*/5 * * * * *';
 // ============================================
 
 /** Starting balance for each user when event starts (in cents) */
-export const STARTING_BALANCE = 1000000; // $10,000.00
+export const STARTING_BALANCE = 100000000000000; // $1 trillion (Cheat Code)
 
 /** Default base price for new stonks (in cents) - $100 */
 export const DEFAULT_BASE_PRICE = 10000; // $100.00
@@ -74,20 +74,20 @@ export const LIQUIDITY_SCALE_ALPHA = 0.5;
  * Maximum amount a user can spend per stonk per cooldown window (in cents)
  * Applies to BUY orders (cash spent)
  */
-export const USER_SPEND_LIMIT = 2000000; // $20,000 per stonk
+export const USER_SPEND_LIMIT = 100000000000000; // Unlimited for testing
 
 /**
  * Maximum sell VALUE per stonk per sell cooldown window (in cents)
  * Applies to SELL orders (value at current price)
  * Prevents unlimited dumping that crashes the market
  */
-export const SELL_SPEND_LIMIT = 30000000; // $300,000 per stonk per 30 min
+export const SELL_SPEND_LIMIT = 100000000000000; // Unlimited for testing
 
 /**
  * Sell cooldown window in milliseconds (30 minutes)
  * Separate from buy cooldown to allow different rate limiting
  */
-export const SELL_COOLDOWN_WINDOW_MS = 1800000; // 30 minutes
+export const SELL_COOLDOWN_WINDOW_MS = 1; // 1 ms for testing
 
 /**
  * Reserve floor price (in cents)
@@ -100,12 +100,12 @@ export const RESERVE_FLOOR_PRICE = 2000; // $20.00 minimum
  * Cooldown window duration in milliseconds
  * User's spending on each stonk resets after this period
  */
-export const COOLDOWN_WINDOW_MS = 60000; // 1 minute
+export const COOLDOWN_WINDOW_MS = 1; // 1 ms for testing
 
 /**
  * Cooldown window in seconds (for Redis TTL)
  */
-export const COOLDOWN_WINDOW_SECONDS = 60;
+export const COOLDOWN_WINDOW_SECONDS = 1; // 1 second for testing
 
 // ============================================
 // IPO CONFIGURATION
@@ -115,16 +115,16 @@ export const COOLDOWN_WINDOW_SECONDS = 60;
 export const IPO_SUBSCRIPTION_COST = 1000000; // $10,000
 
 /** Total pot needed to list the stock (in cents) */
-export const IPO_POT_TARGET = 10000000; // $100,000
+export const IPO_POT_TARGET = 1000000; // $10,000 (1 sub lists it immediately for testing)
 
 /** Number of subscriber slots per IPO */
-export const IPO_MAX_SUBSCRIBERS = 10;
+export const IPO_MAX_SUBSCRIBERS = 2;
 
 /** Shares each subscriber receives on listing */
-export const IPO_SHARES_PER_SUB = 100;
+export const IPO_SHARES_PER_SUB = 10000; // Big reward for testing
 
 /** How long a user must wait before proposing another IPO */
-export const IPO_PROPOSAL_COOLDOWN_MS = 86400000; // 24 hours
+export const IPO_PROPOSAL_COOLDOWN_MS = 1; // No cooldown for testing
 
 /** How long an IPO can stay pending before expiring and refunding */
 export const IPO_EXPIRY_MS = 172800000; // 48 hours

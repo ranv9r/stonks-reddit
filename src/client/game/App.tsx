@@ -85,11 +85,19 @@ export const App = () => {
         setCurrentView('detail');
       }
 
+      const initialView = localStorage.getItem('initialView');
+      if (initialView) {
+        console.log('[App] Found initialView:', initialView);
+        localStorage.removeItem('initialView');
+        setCurrentView(initialView as View);
+      }
+
       const ipoTicker = localStorage.getItem('openIpoTicker');
       if (ipoTicker) {
         console.log('[App] Found openIpoTicker:', ipoTicker);
-        localStorage.removeItem('openIpoTicker');
+        // We set the view to ipo if it's an ipo ticker deep-link
         setCurrentView('ipo');
+        // Do NOT remove openIpoTicker yet, IpoView needs it for highlighting
       }
     };
 

@@ -111,7 +111,7 @@ export async function executeBuy(
         xReal: stonk.xReal,
         yReal: stonk.yReal,
     };
-    const { estimatedShares: stockDistributed, postBuyPrice } = ammEngine.estimateBuy(ammState, actualAmount);
+    const { estimatedShares: stockDistributed } = ammEngine.estimateBuy(ammState, actualAmount);
 
     // 6. Add to Batch (direct Redis write for reliability)
     await redisService.addBuyVolume(stonk.id, actualAmount);
@@ -130,10 +130,12 @@ export async function executeBuy(
             avgPrice: totalCost / totalQty
         };
     } else {
-        // New holding
+        // New holding: Cost basis should just be the amount paid / shares received
+        // This stops the frontend from looking like the user took an instant loss
+        // since `postBuyPrice` is always higher than `actualAmount / stockDistributed`.
         updatedPortfolio[stonkId] = {
             qty: stockDistributed,
-            avgPrice: postBuyPrice // User's cost basis is at their impact price
+            avgPrice: actualAmount / stockDistributed
         };
     }
 
